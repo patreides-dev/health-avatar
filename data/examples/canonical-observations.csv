@@ -1,0 +1,5 @@
+person_external_reference,observation_type,observed_at,value,unit,measurement_method,reliability_classification,source_record_identifier
+kevin-demo,body_weight,2026-08-01T07:15:00-04:00,238.4,lb,measured,consumer_device,weight-001
+kevin-demo,resting_heart_rate,2026-08-01T07:15:00-04:00,58,bpm,measured,consumer_device,rhr-001
+kevin-demo,sleep_duration,2026-08-01T06:45:00-04:00,7.2,hour,estimated,consumer_device,sleep-001
+
