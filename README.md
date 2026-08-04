@@ -12,6 +12,8 @@ Pytest, Ruff, MyPy, and Docker Compose. HTTP and CLI adapters call the same serv
 rejected rows are retained in `import_errors`; accepted values are normalized into typed
 `health_observations`. A derived-data layer is reserved for later versions. See
 [`docs/architecture.md`](docs/architecture.md) and [`docs/data-model.md`](docs/data-model.md).
+For the exact continuation checkpoint, validation evidence, unresolved items, and bounded Version
+0.2 direction, read [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
 
 ## Docker Compose setup
 
@@ -82,4 +84,3 @@ authentication or authorization enforcement, encryption-at-rest orchestration, f
 conversion, advanced deduplication, derived analytics, wearable connector, or document extraction.
 Its duplicate key depends on a trustworthy source record identifier and may treat corrected source
 records as duplicates. It is suitable only for private development environments, not public use.
-
