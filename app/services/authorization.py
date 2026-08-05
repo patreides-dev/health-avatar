@@ -6,7 +6,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.models import AccessGrant, UserAccount
-from app.models.enums import AccessRole
+from app.models.enums import AccessRole, AccountStatus
 from app.services.auth import Actor
 
 
@@ -25,7 +25,7 @@ class Action(StrEnum):
 def active_grant(session: Session, actor: Actor, person_id: UUID) -> AccessGrant | None:
     now = datetime.now(UTC)
     account = session.get(UserAccount, actor.user_id)
-    if account is None or not account.is_active:
+    if account is None or not account.is_active or account.account_status != AccountStatus.ACTIVE:
         return None
     return session.scalar(
         select(AccessGrant)

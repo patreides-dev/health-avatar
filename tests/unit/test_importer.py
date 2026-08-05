@@ -206,3 +206,30 @@ def test_same_bytes_are_scoped_to_person(seeded_session: Session, tmp_path: Path
     )
     assert first.id != second.id
     assert run2.rejected_count == 1
+
+
+def test_csv_validation_does_not_reveal_unauthorized_person_reference(
+    seeded_session: Session, tmp_path: Path
+) -> None:
+    hidden = Person(
+        external_reference="hidden-person", preferred_name="Hidden Synthetic", timezone="UTC"
+    )
+    seeded_session.add(hidden)
+    seeded_session.commit()
+    _, processing, _ = run(
+        seeded_session,
+        tmp_path,
+        csv_bytes(
+            "hidden-person,body_weight,2026-08-01T07:15:00-04:00,1,lb,measured,unknown,hidden-1",
+            "does-not-exist,body_weight,2026-08-01T07:15:00-04:00,1,lb,measured,unknown,missing-1",
+        ),
+    )
+    issues = list(
+        seeded_session.scalars(
+            select(ValidationIssue)
+            .where(ValidationIssue.processing_run_id == processing.id)
+            .order_by(ValidationIssue.source_locator)
+        )
+    )
+    assert [issue.issue_code for issue in issues] == ["unknown_person", "unknown_person"]
+    assert [issue.message for issue in issues] == ["Person not found", "Person not found"]

@@ -86,6 +86,10 @@ def provision_google_account(session: Session, claims: dict[str, Any]) -> UserAc
 
 
 def create_session(session: Session, account: UserAccount, settings: Settings) -> tuple[str, str]:
+    if account.account_status not in {AccountStatus.PENDING, AccountStatus.ACTIVE} or (
+        account.account_status == AccountStatus.ACTIVE and not account.is_active
+    ):
+        raise AuthenticationError("Account cannot start a session")
     token, csrf = secrets.token_urlsafe(32), secrets.token_urlsafe(32)
     session.add(
         AppSession(

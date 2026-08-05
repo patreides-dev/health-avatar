@@ -111,6 +111,17 @@ def test_populated_version_01_database_upgrades_and_downgrades() -> None:
                 )
                 == 1
             )
+        subprocess.run(["alembic", "upgrade", "head"], check=True, env=environment)
+        with test_engine.connect() as connection:
+            assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
+                "20260805_0002"
+            )
+            assert (
+                connection.scalar(
+                    text("SELECT count(*) FROM persons WHERE id = :id"), {"id": person_id}
+                )
+                == 1
+            )
         test_engine.dispose()
     finally:
         with admin_engine.connect() as connection:

@@ -4,7 +4,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import Person
+from app.models import Person, UserAccount
 
 
 def test_health_endpoint(client: TestClient) -> None:
@@ -95,3 +95,25 @@ def test_anonymous_browser_redirects_and_pending_sees_no_data(
     assert pending.status_code == 200
     assert "Access pending" in pending.text
     assert "Kevin Demo" not in pending.text
+
+
+def test_browser_rechecks_account_status(
+    client: TestClient,
+    seeded_session: Session,
+    login: Callable[[str], dict[str, str]],
+) -> None:
+    login("dev-owner")
+    account = seeded_session.scalar(
+        select(UserAccount).where(UserAccount.provider_subject == "dev-owner")
+    )
+    assert account is not None
+    account.account_status = "pending"
+    account.is_active = True
+    seeded_session.commit()
+    response = client.get("/app", follow_redirects=False)
+    assert response.status_code == 303 and response.headers["location"] == "/pending"
+    account.account_status = "disabled"
+    account.is_active = False
+    seeded_session.commit()
+    response = client.get("/pending", follow_redirects=False)
+    assert response.status_code == 303 and response.headers["location"] == "/auth/login"

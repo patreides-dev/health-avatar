@@ -9,7 +9,12 @@ from sqlalchemy.orm import Session
 
 from app.core.config import Settings, get_settings
 from app.models import AppSession, UserAccount
-from app.services.auth import AuthenticationError, provision_google_account, verify_google_token
+from app.services.auth import (
+    AuthenticationError,
+    create_session,
+    provision_google_account,
+    verify_google_token,
+)
 
 
 def claims(**changes: object) -> dict[str, object]:
@@ -117,3 +122,24 @@ def test_disabled_account_is_rejected_immediately(
     account.account_status = "disabled"
     seeded_session.commit()
     assert client.get("/api/v1/persons").status_code == 403
+    with pytest.raises(AuthenticationError, match="cannot start"):
+        create_session(
+            seeded_session,
+            account,
+            Settings(app_env="testing", session_secret="synthetic-test-secret-not-for-production"),
+        )
+
+
+def test_disabled_account_cannot_use_development_login(
+    client: TestClient, seeded_session: Session
+) -> None:
+    account = seeded_session.scalar(
+        select(UserAccount).where(UserAccount.provider_subject == "dev-owner")
+    )
+    assert account is not None
+    account.account_status = "disabled"
+    account.is_active = False
+    seeded_session.commit()
+    response = client.post("/auth/development-login", data={"identity": "owner"})
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "account_disabled"

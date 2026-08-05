@@ -118,6 +118,10 @@ async def google_callback(
             detail={"code": "invalid_oidc_nonce", "message": "Google login nonce is invalid"},
         )
     account = provision_google_account(session, claims)
+    if account.account_status == AccountStatus.DISABLED:
+        raise HTTPException(
+            403, detail={"code": "account_disabled", "message": "Account is disabled"}
+        )
     token, csrf = create_session(session, account, settings)
     response = RedirectResponse("/pending" if not account.is_active else "/app", status_code=303)
     response.set_cookie(
@@ -163,6 +167,10 @@ def development_login(
     if account is None:
         raise HTTPException(
             409, detail={"code": "seed_required", "message": "Run the development seed first"}
+        )
+    if account.account_status == AccountStatus.DISABLED:
+        raise HTTPException(
+            403, detail={"code": "account_disabled", "message": "Account is disabled"}
         )
     token, csrf = create_session(session, account, settings)
     response = RedirectResponse(

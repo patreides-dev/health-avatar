@@ -20,6 +20,7 @@ from app.models import (
     SourceSystem,
     UserAccount,
 )
+from app.models.enums import AccountStatus
 from app.services.auth import Actor
 from app.services.authorization import (
     Action,
@@ -51,7 +52,7 @@ for group, name in (
 
 def actor(session: Session, actor_user: UUID) -> Actor:
     account = session.get(UserAccount, actor_user)
-    if account is None or not account.is_active:
+    if account is None or not account.is_active or account.account_status != AccountStatus.ACTIVE:
         raise typer.BadParameter("Actor must be an active user account")
     return Actor(account.id, account.is_system_administrator)
 

@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
@@ -11,6 +11,7 @@ from app.ingestion.canonical_csv import registry_adapter
 from app.ingestion.contracts import AdapterRequest
 from app.ingestion.registry import AdapterNotFoundError, AdapterRegistry
 from app.models import (
+    AccessGrant,
     CandidateRecord,
     HealthObservation,
     ImportBatch,
@@ -137,9 +138,19 @@ def process_artifact(
     )
     session.add(run)
     session.flush()
+    now = datetime.now(UTC)
+    visible_people = (
+        select(Person.external_reference, Person.id)
+        .join(AccessGrant, AccessGrant.person_id == Person.id)
+        .where(
+            AccessGrant.user_account_id == actor.user_id,
+            AccessGrant.revoked_at.is_(None),
+            or_(AccessGrant.expires_at.is_(None), AccessGrant.expires_at > now),
+        )
+    )
     people = {
         reference: person_id
-        for reference, person_id in session.execute(select(Person.external_reference, Person.id))
+        for reference, person_id in session.execute(visible_people)
         if reference is not None
     }
     types = {

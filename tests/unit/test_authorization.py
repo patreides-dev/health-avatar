@@ -70,6 +70,17 @@ def test_household_membership_never_grants_access(seeded_session: Session) -> No
         authorize(seeded_session, Actor(owner.id), outsider.id, Action.VIEW)
 
 
+def test_non_active_account_status_cannot_use_an_active_grant(seeded_session: Session) -> None:
+    person = seeded_session.scalar(select(Person).where(Person.external_reference == "kevin-demo"))
+    owner = account(seeded_session, "dev-owner")
+    assert person is not None
+    owner.account_status = "pending"
+    owner.is_active = True
+    seeded_session.commit()
+    with pytest.raises(AuthorizationError):
+        authorize(seeded_session, Actor(owner.id), person.id, Action.VIEW)
+
+
 def create_review_candidate(
     session: Session, tmp_path: Path, status: str = "awaiting_review"
 ) -> CandidateRecord:

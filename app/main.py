@@ -28,6 +28,7 @@ from app.models import (
     UserAccount,
     ValidationIssue,
 )
+from app.models.enums import AccountStatus
 from app.repositories.observations import query_observations
 from app.services.auth import Actor
 from app.services.authorization import Action, AuthorizationError, authorize
@@ -63,8 +64,10 @@ def active_browser_account(request: Request, session: Session) -> UserAccount | 
     account = browser_account(request, session)
     if account is None:
         return RedirectResponse("/auth/login", status_code=303)
-    if not account.is_active:
+    if account.account_status == AccountStatus.PENDING:
         return RedirectResponse("/pending", status_code=303)
+    if not account.is_active or account.account_status != AccountStatus.ACTIVE:
+        return RedirectResponse("/auth/login", status_code=303)
     return account
 
 
@@ -85,8 +88,10 @@ def pending(request: Request, session: DB) -> HTMLResponse | RedirectResponse:
     account = browser_account(request, session)
     if account is None:
         return RedirectResponse("/auth/login", status_code=303)
-    if account.is_active:
+    if account.is_active and account.account_status == AccountStatus.ACTIVE:
         return RedirectResponse("/app", status_code=303)
+    if account.account_status != AccountStatus.PENDING:
+        return RedirectResponse("/auth/login", status_code=303)
     return HTMLResponse(
         page(
             "Access pending",
