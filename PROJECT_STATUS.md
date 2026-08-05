@@ -1,180 +1,132 @@
 # Health Avatar project status
 
-Last verified: 2026-08-04 (America/New_York)
+Last verified: 2026-08-05 (America/New_York)
 
-This is the durable continuation checkpoint for a fresh development thread. Read this file first,
-then `README.md`, `docs/architecture.md`, `docs/data-model.md`, and `docs/import-contract.md`.
+This is the durable continuation checkpoint. Read this file first, then `README.md`,
+`docs/architecture.md`, `docs/data-model.md`, `docs/import-contract.md`, and the version audit.
 
 ## Repository state
 
 - Repository: `patreides-dev/health-avatar`
-- Local checkout used for Version 0.1: `C:\patreides-repos\health-avatar`
-- Branch: `main`
-- Remote transport: `git@github-personal:patreides-dev/health-avatar.git`
-- Version 0.1 implementation/documentation baseline: `122314b1d77cebd7fdcf10759668730a3881731d`
-- Baseline subject: `docs: document architecture privacy and roadmap`
-- Handoff expectation: the documentation commit containing this file follows that baseline, is
-  pushed to `origin/main`, and leaves a clean worktree. Confirm with:
+- Checkout: `C:\patreides-repos\health-avatar`
+- Feature branch: `version-0.2a-auth-ingestion`
+- Remote: `git@github-personal:patreides-dev/health-avatar.git`
+- Version 0.1 main baseline: `6bf32b5` (`docs: add fresh-thread continuation checkpoint`)
+- Current release implemented on this feature branch: Version 0.2A
+- Migration head: `20260805_0002`, following `20260804_0001`
 
-```sh
-git status --short --branch
-git log --oneline --decorate -n 10
-git rev-parse HEAD
-```
+Version 0.2A is intentionally not merged into `main`. Confirm the current remote commit and clean
+worktree with `git status --short --branch`, `git log --oneline --decorate -n 12`, and
+`git rev-parse HEAD`.
 
-The Version 0.1 work was built as seven logical commits: tooling, schema/migration, shared services,
-CSV import/CLI, API, tests, and documentation. No Version 0.2 implementation is present.
+## Version 0.2A scope and implementation
 
-## Implemented Version 0.1
+Version 0.2A establishes secure identity and source-agnostic ingestion. It provides:
 
-Version 0.1 is a working backend-first vertical slice using Python 3.12, FastAPI, Pydantic,
-SQLAlchemy 2, Alembic, PostgreSQL 16, Typer, Pytest, Ruff, MyPy, and Docker Compose.
+- Google OpenID Connect identity verification through `google-auth`, durable mapping by provider
+  subject, pending account provisioning, and no stored Google access or refresh tokens.
+- Server-side opaque sessions with HTTP-only/SameSite cookies, production Secure cookies,
+  expiration, logout invalidation, signed OIDC state/nonce, CSRF protection, and rotatable secrets.
+- An isolated, visibly labeled deterministic development login that is disabled by default and
+  rejected by production configuration validation.
+- Service-layer `AccessGrant` enforcement with owner, administrator, caregiver, and viewer policy;
+  active/expiry/revocation checks; resource-hiding 404s; and no household-derived permissions.
+  System administrators do not receive blanket health-record access.
+- Audited account activation/disable and access-grant/revoke operations through protected APIs and
+  trusted local CLI commands with explicit actor context.
+- Immutable source-artifact metadata and locally stored bytes behind an `ArtifactStorage`
+  abstraction with generated keys, path confinement, hash calculation, and size/type restrictions.
+- A typed ingestion adapter contract and registry, processing runs, candidate records, structured
+  validation issues, human approval/rejection metadata, and idempotent canonical promotion.
+- A fully functional `CanonicalCsvAdapter`. CSV now flows through artifact, run, candidate,
+  validation, and promotion records while retaining Version 0.1 import batches/errors and accepted
+  raw-row provenance for compatibility.
+- Provenance from every promoted observation to artifact, run, candidate, adapter/version,
+  submitter, approver, person, and source locator.
+- Responsive server-rendered login, pending-account, person-selector, person-summary, upload,
+  processing-run, and candidate-review pages. Pages escape source-controlled values and never
+  reveal storage keys or raw artifact bytes.
+- Versioned JSON APIs and expanded administrative/inspection CLI commands described in `README.md`.
+- Synthetic seed accounts for owner, viewer, caregiver, pending, administrator, and revoked-access
+  scenarios. No seed identity or sample is a real person.
 
-The repository currently provides:
+## Important policies and invariants
 
-- Docker Compose application and PostgreSQL services, with a PostgreSQL health check and an app
-  entrypoint that applies Alembic migrations before starting Uvicorn.
-- A first migration, `20260804_0001`, containing the complete multi-person foundation. Migrations
-  contain schema only and never create a person.
-- `Person` as the first-class health-data subject with an immutable UUID and optional unique
-  external reference.
-- Separate `UserAccount` and `AccessGrant` entities. A login identity is not a health-data person.
-  Grant roles exist in the schema but are not enforced in Version 0.1.
-- Households and temporal household memberships. Membership never implies access.
-- Source systems, reusable devices, and temporal person-device assignments. Shared devices are
-  supported and invalid assignment ranges are rejected by validation and the database.
-- Observation types and health observations with timezone-aware timestamps, explicit units, exactly
-  one typed value, provenance fields, and database constraints.
-- Import batches and import errors with statistics, status, SHA-256 file identity, source row
-  numbers, stable error codes, and raw rejected rows.
-- Exact raw canonical CSV fields retained as protected JSONB for accepted observations; raw rows are
-  intentionally omitted from API responses.
-- An idempotent canonical CSV importer shared by the CLI and API. It never creates an unknown person
-  and never converts a unit silently.
-- An idempotent development seed with six observation types, synthetic `kevin-demo`, and
-  `manual-csv`. This identity exists only in the seed and synthetic example data.
-- Required Version 0.1 HTTP endpoints, observation filters/pagination, structured HTTP/validation
-  errors, generated OpenAPI documentation, `/health`, and a minimal HTML status page.
-- A shared repository/service boundary so future web clients do not require backend restructuring.
+- Authentication proves identity; only active `AccessGrant` records authorize person data.
+- A successful first Google login creates a pending internal account and grants no health access.
+- Email is mutable profile metadata, not the durable external identity key. Unverified email is not
+  trusted.
+- Owners can grant ordinary caregiver/viewer access for their person. System administration is
+  required for account lifecycle and broader grant operations. Self-escalation is prohibited.
+- Viewer is read-only. Caregiver may submit and may approve only when `can_approve` is set. Owner may
+  submit, approve, and manage ordinary access. Administrators read health data only with a grant.
+- Unauthorized object lookups use 404 when revealing existence is unnecessary; unauthenticated
+  requests use 401 and authenticated capability failures use structured 403/404 responses.
+- Artifact idempotency is scoped by byte hash, source system, and subject/unresolved context.
+  Processing idempotency adds adapter name and schema version. A newer schema version can reprocess
+  an artifact; candidate-to-observation uniqueness prevents duplicate promotion.
+- Source evidence is not silently deleted when canonical data changes. Full correction/supersession
+  support remains deferred rather than making observations destructively mutable.
+- Raw artifact contents and rejected rows must not be logged or returned by ordinary APIs.
+- Real health data, credentials, `.env`, dumps, and artifact-storage contents must never enter Git.
+- The deployment remains private and non-public pending an explicit security and operations review.
 
-The canonical implementation references are:
+## Verification checkpoint
 
-- `app/models/entities.py` for the relational model and constraints.
-- `alembic/versions/20260804_0001_initial_schema.py` for the deployed schema.
-- `app/importers/canonical_csv.py` for import validation, provenance, and idempotency.
-- `app/services/` and `app/repositories/` for shared business/query behavior.
-- `app/api/v1/router.py` and `app/cli/main.py` for the two adapters.
+Evidence run on the final Version 0.2A working tree:
 
-## Important decisions and invariants
+- PostgreSQL-backed Docker test suite: 49 passed; 78% branch-aware coverage. It includes a populated
+  Version 0.1 database upgrade to head, data-preservation checks, constraints, and downgrade support.
+- Ruff format check and Ruff lint: passed for 59 files.
+- Strict MyPy: passed for 34 application source files.
+- Pre-commit: both pinned Ruff hooks passed.
+- Alembic autogenerate drift check: no new upgrade operations detected.
+- Docker image: built successfully.
+- Compose: PostgreSQL and application both healthy; `/health` returned
+  `{"status":"ok","version":"0.2.0"}`.
+- Migration/seed/validation: upgrade reached head; repeated synthetic seed runs created zero
+  duplicates; `health-avatar validate` passed.
+- Live owner CLI import: completed with 3 candidates, 3 promoted observations, 0 rejected; artifact,
+  run, candidate, and observation provenance links were present.
 
-- Privacy first: real health data, exports, documents, credentials, `.env`, database dumps, and local
-  secrets must not enter Git. Tracked sample data is synthetic.
-- Multi-person from migration one: a person is an entity, not a tag, and every observation belongs
-  to exactly one person.
-- Identity is explicit: imports resolve `person_external_reference`; unknown people are rejected.
-- Units are explicit: the canonical importer requires the observation type's exact unit and performs
-  no conversion.
-- Raw, normalized, and future derived data remain separate. Derived values must eventually carry
-  algorithm/version/input lineage and must not overwrite normalized observations.
-- Provenance is mandatory: normalized observations link to person, source system, import batch,
-  original filename/hash through the batch, source record identifier, and source row number.
-- Accepted and rejected rows validate independently. Accepted rows commit even when other rows fail.
-- File reruns are idempotent by source system, SHA-256, and optional explicit subject. Cross-file
-  observation duplication uses source system, source record identifier, person, and observation
-  type.
-- Household membership is organizational only and must never become an implicit permission grant.
-- A device assignment is temporal; no code may assume permanent one-person ownership.
-- Version 0.1 does not diagnose, recommend treatment, or claim clinical interpretation.
-- The API and CLI must continue to share business services rather than duplicating endpoint logic.
+The suite emits one non-failing dependency warning: the installed FastAPI/Starlette TestClient
+reports that its current `httpx` integration is deprecated in favor of `httpx2`.
 
-## Validation checkpoint
+## Known limitations and explicitly deferred work
 
-The following evidence was current on 2026-08-04:
+- A real Google browser login was not exercised because repository-safe client credentials were not
+  available. Token validation, account mapping, callback/session behavior, invalid/audience/expiry
+  failures, and disabled/pending accounts are covered with mocks and deterministic tests. Google
+  Cloud client registration and an authorized redirect URI still require manual validation.
+- Local filesystem storage is development-only. Encrypted object storage, malware scanning,
+  backup/restore drills, TLS termination, and production secrets infrastructure are not supplied.
+- The canonical CSV adapter is the only production-capable adapter. Archives, images, documents,
+  conversational text, and API payloads are representable but not yet interpreted.
+- Observation correction/supersession remains a documented future non-destructive service design.
+- Device assignment ranges are validated but overlap/exclusivity policy remains deferred.
+- No production AI calls, OCR, workout-image extraction, meal/nutrition interpretation, Samsung or
+  Hume connector, medical-document extraction, diagnostics, treatment advice, public deployment,
+  native Android app, React SPA, background jobs, or broad analytics are included.
 
-- `ruff format --check .`: passed; 37 files already formatted.
-- `ruff check .`: passed.
-- `mypy app`: passed in strict mode; 24 source files checked.
-- Local `pytest -q`: 12 passed, 2 PostgreSQL tests skipped because
-  `HEALTH_AVATAR_TEST_DATABASE_URL` was not set, 76% coverage.
-- Compose-network PostgreSQL run: 14 passed, 76% coverage. This included PostgreSQL 16 connectivity
-  and an actual invalid device-assignment insert rejected by the database constraint.
-- Docker application image: built successfully.
-- Compose services: app running on port 8000; PostgreSQL healthy.
-- Alembic: `20260804_0001 (head)`.
-- Development seed: first run created six observation types, one synthetic person, and one source;
-  second run created zero records.
-- Example import: one completed batch with 3 total, 3 accepted, 0 rejected; rerunning returned the
-  same batch and did not duplicate observations.
-- Raw accepted-row provenance: present for all three example observations.
-- Live health response: `{"status":"ok","version":"0.1.0"}`.
+## Next intended scope
 
-The local Docker volume contains only this synthetic demonstration state and is not a durable source
-of project truth. A fresh thread may stop the stack normally with `docker compose down`; do not use
-`-v` if local development data needs to be retained.
-
-One non-failing warning remains: the installed FastAPI/Starlette TestClient reports that its current
-`httpx` integration is deprecated in favor of `httpx2`. This is dependency-level follow-up, not a
-Version 0.1 functional failure.
-
-## Known limitations and unresolved items
-
-- Authentication and authorization are not implemented or enforced. `AccessGrant` is schema only.
-  Version 0.1 must remain private and must not be exposed publicly.
-- The application does not orchestrate encryption at rest, HTTPS, secret management, backups, or a
-  protected production object store.
-- Original CSV rows are retained, and file identity is retained by filename and SHA-256, but the
-  original file bytes are not stored by the application.
-- Duplicate detection relies on stable upstream source record identifiers. It can miss duplicates
-  when identifiers change and can reject legitimate corrections or repeated events that reuse an
-  identifier. Source-native revision semantics are future work.
-- Only the canonical numeric CSV contract is implemented. Text/boolean manual observations require
-  a future validated service contract.
-- There is no responsive frontend, manual-entry workflow, wearable connector, document ingestion,
-  analytics layer, unit conversion, or clinical interpretation.
-- Most service/API tests use isolated SQLite fixtures for speed. PostgreSQL-specific integration
-  tests and the live vertical-slice verification cover PostgreSQL behavior, but broader end-to-end
-  PostgreSQL fixture coverage would strengthen the suite.
-- Compose has a PostgreSQL health check but no application health check. `docker compose up -d` can
-  return just before the app entrypoint migration finishes; automation should poll `/health` before
-  running seed/import commands.
-- API/service coverage is meaningful but uneven; total coverage is 76%, with CLI paths and several
-  error branches below the project average.
-
-## Intended Version 0.2 direction
-
-Do not treat this section as authorization to start Version 0.2. It records the intended next phase
-for a new, explicitly scoped assignment.
-
-Version 0.2 should add a responsive web interface and validated manual entry while preserving the
-Version 0.1 boundaries. A sensible planning order is:
-
-1. Define the manual-observation contract, including typed values, explicit units, timezone-aware
-   observation times, source/provenance semantics, and validation/error behavior.
-2. Add the shared manual-entry service and API endpoint with database and API tests. Manual entries
-   should use an explicit source system and an appropriate measurement method such as
-   `self_reported`; they must not bypass provenance or create people implicitly.
-3. Add a small responsive web client that consumes `/api/v1` and does not embed business rules that
-   belong in backend services.
-4. Add privacy-focused UX: clear person selection, unit display, provenance display, confirmation,
-   and warnings that the system is not medical advice.
-5. Improve repeatable end-to-end PostgreSQL test setup and add an application health check as
-   enabling work if included in the Version 0.2 scope.
-
-Unless explicitly reprioritized, full family authentication/access-control enforcement remains a
-later roadmap phase. Any Version 0.2 deployment must therefore remain private and non-public.
+Version 0.2B should add workout-image capture, a multimodal provider abstraction, structured
+exercise extraction, uncertainty-aware staged candidates, and mandatory review. It must reuse the
+Version 0.2A artifact, adapter, processing, candidate, authorization, and promotion boundaries.
 
 ## Fresh-thread startup checklist
 
-```sh
+```powershell
 cd C:\patreides-repos\health-avatar
 git status --short --branch
 git fetch origin
-git log --oneline --decorate -n 10
-docker compose ps
+git log --oneline --decorate -n 12
 docker compose up --build -d
-docker compose exec app alembic current
+docker compose exec app health-avatar db upgrade
+docker compose exec app health-avatar seed development
 docker compose exec app health-avatar validate
+Invoke-RestMethod http://localhost:8000/health
 ```
 
-Before changing code, read the five documents named at the top of this file, confirm the requested
-scope, inspect the latest Git state, and preserve the privacy and identity invariants above.
+Before changing code, inspect the current branch, migrations, tests, documentation, and history.
+Do not begin the next version until its exact scope is explicitly established.

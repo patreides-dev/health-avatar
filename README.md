@@ -1,86 +1,62 @@
 # Health Avatar
 
 Health Avatar is a privacy-first, person-agnostic platform for longitudinal health data. Version
-0.1 is a backend foundation: it models people as immutable UUID identities, records provenance,
-imports a strict canonical CSV, and exposes a FastAPI API. It does not diagnose conditions or offer
-treatment recommendations.
+0.2A adds secure identity, person-level authorization, immutable source artifacts, staged adapter
+processing, human review, and provenance-preserving promotion. It does not diagnose, recommend
+treatment, or perform production AI extraction.
 
-## Current status and architecture
+## Local development
 
-The application uses Python 3.12, FastAPI, Pydantic, SQLAlchemy 2, Alembic, PostgreSQL 16, Typer,
-Pytest, Ruff, MyPy, and Docker Compose. HTTP and CLI adapters call the same service layer. Raw
-rejected rows are retained in `import_errors`; accepted values are normalized into typed
-`health_observations`. A derived-data layer is reserved for later versions. See
-[`docs/architecture.md`](docs/architecture.md) and [`docs/data-model.md`](docs/data-model.md).
-For the exact continuation checkpoint, validation evidence, unresolved items, and bounded Version
-0.2 direction, read [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
+Use Docker Compose v2:
 
-## Docker Compose setup
-
-Requirements: Docker with Compose v2.
-
-```sh
-cp .env.example .env
+```powershell
+Copy-Item .env.example .env
+# Set HEALTH_AVATAR_DEVELOPMENT_AUTH_ENABLED=true only for local synthetic use.
 docker compose up --build -d
+docker compose exec app health-avatar db upgrade
 docker compose exec app health-avatar seed development
 docker compose exec app health-avatar validate
 ```
 
-The app starts at <http://localhost:8000>, generated documentation at `/docs`, and health status at
-`/health`. The app container runs `alembic upgrade head` before serving. Stop with
-`docker compose down`; add `-v` only when intentionally deleting the development database.
+Open <http://localhost:8000>. Google login requires the configuration documented in
+[`docs/authentication.md`](docs/authentication.md). Development login is visibly marked and uses
+only deterministic synthetic identities. It is disabled by default and forbidden in production.
 
-## Local development
-
-Use Python 3.12 and a PostgreSQL URL reachable from the host:
-
-```sh
-python -m venv .venv
-.venv/Scripts/activate              # Windows
-python -m pip install -e ".[dev]"
-copy .env.example .env              # Windows; then change db host from db to localhost
-alembic upgrade head
-health-avatar seed development
-pytest
-ruff format --check .
-ruff check .
-mypy app
-pre-commit install
-```
-
-Create a migration with `alembic revision --autogenerate -m "description"`, review it, then run
-`alembic upgrade head`. Downgrade the initial schema with `alembic downgrade base` only on a database
-whose data may be destroyed.
+The seed creates six observation types, synthetic `kevin-demo`, `manual-csv`, and synthetic owner,
+viewer, caregiver, pending, administrator, and revoked-grant examples. Migrations never create a
+person or account.
 
 ## CLI examples
 
-```sh
-health-avatar db upgrade
-health-avatar seed development
-health-avatar import csv --person-external-reference kevin-demo --source-system manual-csv data/examples/canonical-observations.csv
-health-avatar validate
+Commands that change security or health data require an explicit actor UUID:
+
+```powershell
+health-avatar users list --actor-user ADMIN_UUID
+health-avatar users activate USER_UUID --actor-user ADMIN_UUID
+health-avatar access grant --user USER_UUID --person PERSON_UUID --role viewer --actor-user ADMIN_UUID
+health-avatar import csv data/examples/canonical-observations.csv `
+  --person-external-reference kevin-demo --source-system manual-csv --actor-user OWNER_UUID
+health-avatar processing show RUN_UUID --actor-user OWNER_UUID
+health-avatar candidates approve CANDIDATE_UUID --actor-user OWNER_UUID
 ```
 
-The development seed is idempotent and is the only place the synthetic `kevin-demo` identity is
-created. Migrations contain no person records.
+The CLI is a trusted local administrative adapter, not a hidden superuser. The supplied actor is
+looked up, must be active, and is authorized by the same services as HTTP routes.
 
-## API examples
+## API and interface
 
-```sh
-curl http://localhost:8000/health
-curl -X POST http://localhost:8000/api/v1/persons \
-  -H "Content-Type: application/json" \
-  -d '{"external_reference":"person-001","preferred_name":"Sample Person","timezone":"UTC"}'
-curl "http://localhost:8000/api/v1/persons/PERSON_UUID/observations?observation_type=body_weight&limit=50&offset=0"
-curl -X POST http://localhost:8000/api/v1/imports/csv \
-  -F source_system_id=SOURCE_UUID -F person_external_reference=kevin-demo \
-  -F file=@data/examples/canonical-observations.csv
-```
+JSON APIs are under `/api/v1`; OpenAPI is at `/docs`. Browser state-changing requests use the
+session-bound CSRF token. Version 0.1 route paths are retained but now require authentication and
+authorization. Unauthorized object IDs normally return the same 404 as nonexistent objects.
 
-## Privacy warning and Version 0.1 limitations
+The responsive server-rendered interface provides login, pending-account, person selector, person
+summary, artifact upload, processing-run, and candidate review pages. It intentionally has no
+analytics dashboard.
 
-Never use the tracked sample path for real exports or commit real health data. Version 0.1 has no
-authentication or authorization enforcement, encryption-at-rest orchestration, frontend, unit
-conversion, advanced deduplication, derived analytics, wearable connector, or document extraction.
-Its duplicate key depends on a trustworthy source record identifier and may treat corrected source
-records as duplicates. It is suitable only for private development environments, not public use.
+## Privacy warning
+
+Never commit real health data, artifacts, exports, credentials, `.env`, database dumps, or backups.
+Local artifact bytes live outside relational columns in a configured storage directory. Version
+0.2A has not undergone a public-deployment review, does not include malware scanning or encrypted
+cloud storage, and makes no HIPAA or regulatory-compliance claim. See [`SECURITY.md`](SECURITY.md)
+and [`docs/threat-model.md`](docs/threat-model.md).

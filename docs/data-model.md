@@ -1,43 +1,46 @@
 # Data model
 
+All identifiers are UUIDs and timestamps are timezone-aware.
+
 ```mermaid
 erDiagram
-  PERSON ||--o{ ACCESS_GRANT : subject
+  USER_ACCOUNT ||--o{ APP_SESSION : owns
   USER_ACCOUNT ||--o{ ACCESS_GRANT : receives
-  HOUSEHOLD ||--o{ HOUSEHOLD_MEMBERSHIP : contains
-  PERSON ||--o{ HOUSEHOLD_MEMBERSHIP : joins
-  SOURCE_SYSTEM ||--o{ DEVICE : registers
-  PERSON ||--o{ PERSON_DEVICE_ASSIGNMENT : uses
-  DEVICE ||--o{ PERSON_DEVICE_ASSIGNMENT : assigned
-  SOURCE_SYSTEM ||--o{ IMPORT_BATCH : supplies
-  PERSON o|--o{ IMPORT_BATCH : scoped_subject
-  IMPORT_BATCH ||--o{ IMPORT_ERROR : records
+  PERSON ||--o{ ACCESS_GRANT : authorizes
+  PERSON ||--o{ SOURCE_ARTIFACT : subject
+  SOURCE_SYSTEM o|--o{ SOURCE_ARTIFACT : origin
+  SOURCE_ARTIFACT o|--o{ SOURCE_ARTIFACT : parent
+  SOURCE_ARTIFACT ||--o{ PROCESSING_RUN : processed
+  PROCESSING_RUN ||--o{ CANDIDATE_RECORD : stages
+  PROCESSING_RUN ||--o{ VALIDATION_ISSUE : reports
+  CANDIDATE_RECORD o|--o{ VALIDATION_ISSUE : explains
+  CANDIDATE_RECORD o|--o| HEALTH_OBSERVATION : promotes
   PERSON ||--o{ HEALTH_OBSERVATION : owns
-  OBSERVATION_TYPE ||--o{ HEALTH_OBSERVATION : classifies
-  SOURCE_SYSTEM ||--o{ HEALTH_OBSERVATION : originates
-  DEVICE o|--o{ HEALTH_OBSERVATION : measures
-  IMPORT_BATCH o|--o{ HEALTH_OBSERVATION : imports
+  SOURCE_ARTIFACT o|--o{ HEALTH_OBSERVATION : evidences
+  PROCESSING_RUN o|--o{ HEALTH_OBSERVATION : produces
+  IMPORT_BATCH o|--o{ HEALTH_OBSERVATION : compatibility
+  USER_ACCOUNT ||--o{ AUDIT_EVENT : acts
 ```
 
-All entity identifiers are UUIDs and all timestamps are timezone-aware.
+- **UserAccount:** durable `(auth_provider, provider_subject)` identity, mutable email/profile
+  metadata, verification state, pending/active/disabled status, system-administrator flag, and login
+  audit time. Email is not an external key.
+- **AppSession:** hash of an opaque random session token, CSRF-token hash, expiry, and invalidation
+  time. Raw tokens are never stored.
+- **AccessGrant:** explicit user/person role, optional caregiver approval capability, grant time,
+  optional expiry/revocation, and granting/revoking actors.
+- **SourceArtifact:** immutable evidence description, subject/source context, submitter, parent,
+  extensible kind and sensitivity strings, hash/length, storage reference, lifecycle status, and
+  metadata. Raw bytes are not relational columns.
+- **ProcessingRun:** adapter identity/version/schema, requester, lifecycle, coherent counts,
+  configuration, and safe error summary.
+- **CandidateRecord:** typed proposed record, subject, source locator, raw/normalized candidate JSON,
+  lifecycle, confidence, approval, and rejection audit fields.
+- **ValidationIssue:** structured severity/code/message, optional field/candidate, and source locator.
+- **HealthObservation:** typed canonical value with existing Version 0.1 provenance plus artifact,
+  run, candidate, adapter, submitter, and approver links. Candidate linkage is unique.
+- **ImportBatch:** retained as the Version 0.1 compatibility summary, now linked to artifact and run.
+- **AuditEvent:** immutable security-administration actor/action/target record without health payloads.
 
-- **Person:** first-class health-data subject; optional unique external reference, names, birth date,
-  IANA timezone, lifecycle status, and audit timestamps.
-- **UserAccount:** login identity with unique email; deliberately separate from Person.
-- **AccessGrant:** explicit role-based user-to-person grant with grant/revocation times. Roles are
-  owner, administrator, caregiver, and viewer. Version 0.1 records but does not enforce grants.
-- **Household / HouseholdMembership:** named grouping and temporal person membership. Membership is
-  many-to-many over time and has no permission semantics.
-- **SourceSystem:** named origin/vendor/version metadata for imports and devices.
-- **Device:** reusable physical source, optionally associated with a source system.
-- **PersonDeviceAssignment:** temporal person/device link; the database rejects inverted ranges.
-- **ImportBatch:** file hash, source, optional explicit subject/importing user, lifecycle status,
-  statistics, importer version, and original filename. Its hash key makes file reruns idempotent.
-- **ObservationType:** unique stable code, display metadata, value type, category, and expected unit.
-- **HealthObservation:** exactly one person and one typed value, explicit unit and method/reliability,
-  temporal bounds, raw source row, and links to source, optional device, batch, source record, and
-  source row. Raw row data is deliberately omitted from API responses.
-- **ImportError:** row number, stable error code, message, and raw rejected row JSON.
-
-Database checks enforce typed-value exclusivity and valid time ranges. A unique provenance key
-supports initial duplicate detection.
+Observations remain append-only. A complete correction/supersession service is deferred rather than
+adding unused mutable fields. Existing observations migrate unchanged and remain queryable.
