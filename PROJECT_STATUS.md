@@ -9,15 +9,19 @@ This is the durable continuation checkpoint. Read this file first, then `README.
 
 - Repository: `patreides-dev/health-avatar`
 - Checkout: `C:\patreides-repos\health-avatar`
-- Feature branch: `version-0.2a-auth-ingestion`
+- Current branch: `main`
 - Remote: `git@github-personal:patreides-dev/health-avatar.git`
 - Version 0.1 main baseline: `6bf32b5` (`docs: add fresh-thread continuation checkpoint`)
-- Current release implemented on this feature branch: Version 0.2A
+- Version 0.2A merge commit: `3306046` (`merge: release Version 0.2A secure ingestion foundation`)
+- Annotated release tag: `v0.2.0-alpha.1`
+- Reviewed Version 0.2A feature head: `999d23f`
 - Migration head: `20260805_0002`, following `20260804_0001`
 
-Version 0.2A is intentionally not merged into `main`. Confirm the current remote commit and clean
-worktree with `git status --short --branch`, `git log --oneline --decorate -n 12`, and
-`git rev-parse HEAD`.
+Version 0.2A passed its independent merge gate and is merged and pushed to `main`. The gate found
+and corrected two authorization-boundary defects before merge: CSV validation context could
+distinguish an unauthorized person reference from a nonexistent one, and inconsistent account
+status flags were not checked uniformly in all browser, CLI, session, and grant paths. Regression
+tests cover both corrections.
 
 ## Version 0.2A scope and implementation
 
@@ -75,8 +79,9 @@ Version 0.2A establishes secure identity and source-agnostic ingestion. It provi
 
 Evidence run on the final Version 0.2A working tree:
 
-- PostgreSQL-backed Docker test suite: 49 passed; 78% branch-aware coverage. It includes a populated
-  Version 0.1 database upgrade to head, data-preservation checks, constraints, and downgrade support.
+- PostgreSQL-backed Docker test suite: 53 passed; 78% branch-aware coverage. It includes a populated
+  Version 0.1 database upgrade to head, data-preservation checks, downgrade, and upgrade back to
+  Version 0.2A.
 - Ruff format check and Ruff lint: passed for 59 files.
 - Strict MyPy: passed for 34 application source files.
 - Pre-commit: both pinned Ruff hooks passed.
@@ -86,6 +91,9 @@ Evidence run on the final Version 0.2A working tree:
   `{"status":"ok","version":"0.2.0"}`.
 - Migration/seed/validation: upgrade reached head; repeated synthetic seed runs created zero
   duplicates; `health-avatar validate` passed.
+- Live development authentication: owner and viewer sessions succeeded; pending access returned
+  403; viewer upload returned the resource-hiding 404; a temporarily activated synthetic identity
+  with only a revoked grant received an empty person list.
 - Live owner CLI import: completed with 3 candidates, 3 promoted observations, 0 rejected; artifact,
   run, candidate, and observation provenance links were present.
 
