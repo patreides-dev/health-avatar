@@ -1,5 +1,8 @@
 from app.models.entities import (
     AccessGrant,
+    AppSession,
+    AuditEvent,
+    CandidateRecord,
     Device,
     HealthObservation,
     Household,
@@ -9,12 +12,18 @@ from app.models.entities import (
     ObservationType,
     Person,
     PersonDeviceAssignment,
+    ProcessingRun,
+    SourceArtifact,
     SourceSystem,
     UserAccount,
+    ValidationIssue,
 )
 
 __all__ = [
     "AccessGrant",
+    "AppSession",
+    "AuditEvent",
+    "CandidateRecord",
     "Device",
     "HealthObservation",
     "Household",
@@ -25,5 +34,8 @@ __all__ = [
     "Person",
     "PersonDeviceAssignment",
     "SourceSystem",
+    "SourceArtifact",
+    "ProcessingRun",
+    "ValidationIssue",
     "UserAccount",
 ]

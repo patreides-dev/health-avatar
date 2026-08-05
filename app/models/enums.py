@@ -13,6 +13,32 @@ class AccessRole(StrEnum):
     VIEWER = "viewer"
 
 
+class AccountStatus(StrEnum):
+    PENDING = "pending"
+    ACTIVE = "active"
+    DISABLED = "disabled"
+
+
+class ProcessingStatus(StrEnum):
+    PENDING = "pending"
+    PROCESSING = "processing"
+    AWAITING_REVIEW = "awaiting_review"
+    COMPLETED = "completed"
+    COMPLETED_WITH_ERRORS = "completed_with_errors"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
+class CandidateStatus(StrEnum):
+    PENDING_VALIDATION = "pending_validation"
+    INVALID = "invalid"
+    AWAITING_REVIEW = "awaiting_review"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    PROMOTED = "promoted"
+    PROMOTION_FAILED = "promotion_failed"
+
+
 class ImportStatus(StrEnum):
     PENDING = "pending"
     PROCESSING = "processing"
