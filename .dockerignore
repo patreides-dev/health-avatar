@@ -10,5 +10,6 @@ __pycache__
 htmlcov
 tests
 docs
-data
-
+data/**
+!data/examples/
+!data/examples/canonical-observations.csv

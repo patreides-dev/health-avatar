@@ -1,27 +1,31 @@
 # Canonical CSV import contract
 
-The UTF-8 CSV header must exactly be:
+The UTF-8 header remains exactly:
 
 ```csv
 person_external_reference,observation_type,observed_at,value,unit,measurement_method,reliability_classification,source_record_identifier
 ```
 
-Each data row requires an existing person external reference and observation-type code, an ISO 8601
-timestamp with explicit UTC offset, a decimal numeric value, and the observation type's exact unit.
-No unit conversion or identity guessing occurs. Measurement methods are `measured`, `estimated`,
-`self_reported`, `imported`, `calculated`, or `inferred`; reliability values are `clinical`,
-`consumer_device`, `self_reported`, `derived`, or `unknown`.
+Rows require an existing explicit person reference, active numeric observation type, timezone-aware
+ISO 8601 timestamp, decimal value, exact configured unit, supported method/reliability, and source
+record identifier. No person guessing or unit conversion occurs.
 
-The importer hashes the exact source bytes with SHA-256. Re-running the same file for the same source
-and explicit subject returns the existing batch without inserting rows. Within different files, an
-observation is considered a duplicate when source system, non-null source record identifier, person,
-and observation type match. This initial strategy depends on stable upstream IDs: it cannot detect
-duplicates when IDs change, and it may suppress legitimate corrections or repeated events that reuse
-an ID. Future importers should add source-native revision semantics.
+The Version 0.2A flow is:
 
-Rows validate independently. Accepted rows commit as normalized observations. Rejected rows become
-`ImportError` records with their original row, row number, stable code, and message. Accepted rows
-also retain the exact source fields in protected JSONB while exposing only normalized values through
-the API. A clean batch is
-`completed`; mixed/all-rejected batches are `completed_with_errors`; malformed headers/encoding fail
-the batch request. Batch counters always describe parsed data rows.
+```text
+CSV -> SourceArtifact -> ProcessingRun -> CanonicalCsvAdapter
+    -> CandidateRecord + ValidationIssue -> promotion -> HealthObservation
+```
+
+Every row becomes a candidate. Invalid rows remain `invalid` and produce structured issues; valid
+trusted rows begin approved and are automatically promoted only after submit authorization.
+Promotion revalidates the candidate and is idempotent. Raw accepted and rejected row dictionaries
+remain protected JSON and are omitted from ordinary API responses.
+
+Artifact identity is scoped by byte hash, source system, and selected subject context. Thus identical
+bytes may legitimately create distinct artifacts for different people. Processing identity is the
+artifact plus adapter name and schema version; an exact repeated operation returns the prior
+artifact, run, and compatibility batch. A new schema version may create a new run over the same
+artifact. Canonical duplicate protection remains source system, source record identifier, person,
+and observation type. A cross-artifact conflict becomes a `promotion_failed` candidate and coherent
+completed-with-errors counts rather than a duplicate observation.

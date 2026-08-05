@@ -83,9 +83,13 @@ def test_seed_is_idempotent(session: Session) -> None:
         "observation_types_created": 6,
         "persons_created": 1,
         "source_systems_created": 1,
+        "user_accounts_created": 5,
+        "access_grants_created": 4,
     }
     assert second == {
         "observation_types_created": 0,
         "persons_created": 0,
         "source_systems_created": 0,
+        "user_accounts_created": 0,
+        "access_grants_created": 0,
     }

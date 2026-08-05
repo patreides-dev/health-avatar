@@ -1,15 +1,19 @@
 # Roadmap
 
-- **Version 0.1:** multi-person foundation, provenance, PostgreSQL schema, canonical CSV import,
-  API/CLI, tests, and secure development deployment.
-- **Version 0.2:** responsive web interface and validated manual entry.
-- **Version 0.3:** reproducible Samsung Health export ingestion.
-- **Version 0.4:** laboratory and medical document ingestion with human review.
-- **Version 0.5:** versioned longitudinal analytics and personal baselines.
-- **Version 0.6:** private family deployment, authentication, and enforced access controls.
-- **Version 0.7:** installable Progressive Web App with resilient mobile workflows.
-- **Version 1.0:** stable, documented, private household release with operational hardening.
+- **Version 0.1:** foundation and canonical CSV ingestion.
+- **Version 0.2A:** Google authentication, AccessGrant enforcement, source artifacts, adapter
+  framework, candidate review, and secure private-household foundation.
+- **Version 0.2B:** workout-image capture, multimodal provider abstraction, structured exercise
+  extraction, and review.
+- **Version 0.2C:** conversational meal entry, structured food parsing, nutrition database matching,
+  nutrient calculation, and uncertainty handling.
+- **Version 0.3:** Samsung Health export ingestion.
+- **Version 0.4:** Hume and additional wearable adapters.
+- **Version 0.5:** laboratory and medical-document ingestion.
+- **Version 0.6:** longitudinal analytics, baselines, and contradiction detection.
+- **Version 0.7:** family administration, Progressive Web App features, notifications, and deployment
+  hardening.
+- **Version 1.0:** stable private household release.
 
-Each phase retains explicit provenance and units, avoids diagnosis, and must pass privacy and threat
-model review before handling real data.
-
+Each phase retains explicit provenance, reviewable uncertainty, strict person authorization, and the
+prohibition on diagnostic or treatment claims.

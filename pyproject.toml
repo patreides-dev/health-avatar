@@ -4,16 +4,20 @@ build-backend = "hatchling.build"
 
 [project]
 name = "health-avatar"
-version = "0.1.0"
+version = "0.2.0"
 description = "Privacy-first longitudinal health data platform"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
   "alembic>=1.13,<2",
   "fastapi>=0.115,<1",
+  "google-auth>=2.38,<3",
+  "httpx>=0.27,<1",
+  "itsdangerous>=2.2,<3",
   "psycopg[binary]>=3.2,<4",
   "pydantic-settings>=2.6,<3",
   "python-multipart>=0.0.12,<1",
+  "requests>=2.32,<3",
   "sqlalchemy>=2.0.36,<3",
   "typer>=0.15,<1",
   "uvicorn[standard]>=0.32,<1",
@@ -21,7 +25,6 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-  "httpx>=0.27,<1",
   "mypy>=1.13,<2",
   "pre-commit>=4,<5",
   "pytest>=8.3,<9",
@@ -47,6 +50,10 @@ python_version = "3.12"
 strict = true
 plugins = ["pydantic.mypy"]
 
+[[tool.mypy.overrides]]
+module = ["google.*", "itsdangerous"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--strict-markers --cov=app --cov-report=term-missing"
@@ -55,4 +62,3 @@ markers = ["integration: requires PostgreSQL"]
 [tool.coverage.run]
 branch = true
 source = ["app"]
-

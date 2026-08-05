@@ -9,6 +9,7 @@ from sqlalchemy import (
     Date,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
@@ -23,6 +24,7 @@ from sqlalchemy.types import JSON
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 from app.models.enums import (
     AccessRole,
+    AccountStatus,
     ImportStatus,
     PersonStatus,
     ValueType,
@@ -49,25 +51,51 @@ class Person(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
 class UserAccount(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "user_accounts"
+    __table_args__ = (
+        UniqueConstraint("auth_provider", "provider_subject", name="uq_user_provider_subject"),
+    )
 
-    email: Mapped[str] = mapped_column(String(320), unique=True)
+    auth_provider: Mapped[str | None] = mapped_column(String(50))
+    provider_subject: Mapped[str | None] = mapped_column(String(255))
+    email: Mapped[str] = mapped_column(String(320), index=True)
+    email_verified: Mapped[bool] = mapped_column(Boolean, default=False)
     display_name: Mapped[str] = mapped_column(String(255))
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    access_grants: Mapped[list["AccessGrant"]] = relationship(back_populates="user_account")
+    profile_image_url: Mapped[str | None] = mapped_column(String(1000))
+    account_status: Mapped[str] = mapped_column(String(32), default=AccountStatus.PENDING)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_system_administrator: Mapped[bool] = mapped_column(Boolean, default=False)
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    access_grants: Mapped[list["AccessGrant"]] = relationship(
+        back_populates="user_account", foreign_keys="AccessGrant.user_account_id"
+    )
 
 
 class AccessGrant(UUIDPrimaryKeyMixin, Base):
     __tablename__ = "access_grants"
     __table_args__ = (
         CheckConstraint("revoked_at IS NULL OR revoked_at >= granted_at", name="valid_period"),
+        CheckConstraint("expires_at IS NULL OR expires_at >= granted_at", name="valid_expiry"),
+        Index(
+            "ix_access_grants_user_person_active",
+            "user_account_id",
+            "person_id",
+            "revoked_at",
+            "expires_at",
+        ),
     )
 
     user_account_id: Mapped[UUID] = mapped_column(ForeignKey("user_accounts.id"))
     person_id: Mapped[UUID] = mapped_column(ForeignKey("persons.id"))
     role: Mapped[str] = mapped_column(String(32), default=AccessRole.VIEWER)
     granted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    user_account: Mapped[UserAccount] = relationship(back_populates="access_grants")
+    can_approve: Mapped[bool] = mapped_column(Boolean, default=False)
+    granted_by_user_account_id: Mapped[UUID | None] = mapped_column(ForeignKey("user_accounts.id"))
+    revoked_by_user_account_id: Mapped[UUID | None] = mapped_column(ForeignKey("user_accounts.id"))
+    user_account: Mapped[UserAccount] = relationship(
+        back_populates="access_grants", foreign_keys=[user_account_id]
+    )
     person: Mapped[Person] = relationship()
 
 
@@ -142,15 +170,22 @@ class PersonDeviceAssignment(UUIDPrimaryKeyMixin, Base):
 class ImportBatch(UUIDPrimaryKeyMixin, Base):
     __tablename__ = "import_batches"
     __table_args__ = (
-        UniqueConstraint(
-            "source_system_id", "file_sha256", "subject_person_id", name="uq_import_batch_file"
-        ),
         CheckConstraint("total_rows >= 0", name="nonnegative_total"),
         CheckConstraint("accepted_rows >= 0", name="nonnegative_accepted"),
         CheckConstraint("rejected_rows >= 0", name="nonnegative_rejected"),
+        Index(
+            "ix_import_batches_file_scope",
+            "source_system_id",
+            "file_sha256",
+            "subject_person_id",
+        ),
     )
 
     source_system_id: Mapped[UUID] = mapped_column(ForeignKey("source_systems.id"))
+    source_artifact_id: Mapped[UUID | None] = mapped_column(ForeignKey("source_artifacts.id"))
+    processing_run_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("processing_runs.id"), unique=True
+    )
     subject_person_id: Mapped[UUID | None] = mapped_column(ForeignKey("persons.id"))
     imported_by_user_account_id: Mapped[UUID | None] = mapped_column(ForeignKey("user_accounts.id"))
     original_filename: Mapped[str] = mapped_column(String(500))
@@ -202,6 +237,18 @@ class HealthObservation(UUIDPrimaryKeyMixin, Base):
             "observation_type_id",
             name="uq_observation_source_record",
         ),
+        Index(
+            "ix_health_observations_person_type_time",
+            "person_id",
+            "observation_type_id",
+            "observed_at",
+        ),
+        Index(
+            "ix_health_observations_provenance",
+            "source_artifact_id",
+            "processing_run_id",
+            "candidate_record_id",
+        ),
     )
 
     person_id: Mapped[UUID] = mapped_column(ForeignKey("persons.id"), index=True)
@@ -215,6 +262,15 @@ class HealthObservation(UUIDPrimaryKeyMixin, Base):
     source_system_id: Mapped[UUID] = mapped_column(ForeignKey("source_systems.id"))
     device_id: Mapped[UUID | None] = mapped_column(ForeignKey("devices.id"))
     import_batch_id: Mapped[UUID | None] = mapped_column(ForeignKey("import_batches.id"))
+    source_artifact_id: Mapped[UUID | None] = mapped_column(ForeignKey("source_artifacts.id"))
+    processing_run_id: Mapped[UUID | None] = mapped_column(ForeignKey("processing_runs.id"))
+    candidate_record_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("candidate_records.id"), unique=True
+    )
+    created_by_user_account_id: Mapped[UUID | None] = mapped_column(ForeignKey("user_accounts.id"))
+    approved_by_user_account_id: Mapped[UUID | None] = mapped_column(ForeignKey("user_accounts.id"))
+    adapter_name: Mapped[str | None] = mapped_column(String(255))
+    adapter_version: Mapped[str | None] = mapped_column(String(50))
     source_record_identifier: Mapped[str | None] = mapped_column(String(500))
     source_row_number: Mapped[int | None] = mapped_column(Integer)
     raw_source_row_json: Mapped[dict[str, Any] | None] = mapped_column(JSON_VARIANT)
@@ -238,3 +294,115 @@ class ImportError(UUIDPrimaryKeyMixin, Base):
     raw_row_json: Mapped[dict[str, Any]] = mapped_column(JSON_VARIANT)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     import_batch: Mapped[ImportBatch] = relationship(back_populates="errors")
+
+
+class AppSession(UUIDPrimaryKeyMixin, Base):
+    __tablename__ = "app_sessions"
+
+    user_account_id: Mapped[UUID] = mapped_column(ForeignKey("user_accounts.id"), index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    csrf_token_hash: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    invalidated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    user_account: Mapped[UserAccount] = relationship()
+
+
+class SourceArtifact(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "source_artifacts"
+    __table_args__ = (
+        Index("ix_source_artifacts_person_received", "subject_person_id", "received_at"),
+    )
+
+    subject_person_id: Mapped[UUID | None] = mapped_column(ForeignKey("persons.id"))
+    source_system_id: Mapped[UUID | None] = mapped_column(ForeignKey("source_systems.id"))
+    submitted_by_user_account_id: Mapped[UUID] = mapped_column(ForeignKey("user_accounts.id"))
+    parent_artifact_id: Mapped[UUID | None] = mapped_column(ForeignKey("source_artifacts.id"))
+    artifact_kind: Mapped[str] = mapped_column(String(100))
+    media_type: Mapped[str] = mapped_column(String(255))
+    original_filename: Mapped[str | None] = mapped_column(String(500))
+    original_external_reference: Mapped[str | None] = mapped_column(String(1000))
+    file_sha256: Mapped[str | None] = mapped_column(String(64))
+    content_length: Mapped[int | None] = mapped_column(Integer)
+    storage_backend: Mapped[str] = mapped_column(String(100))
+    storage_key: Mapped[str | None] = mapped_column(String(500), unique=True)
+    idempotency_scope: Mapped[str] = mapped_column(String(64), unique=True)
+    captured_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    received_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    processing_status: Mapped[str] = mapped_column(String(50), default="pending")
+    sensitivity_classification: Mapped[str] = mapped_column(String(100))
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON_VARIANT, default=dict)
+
+
+class ProcessingRun(UUIDPrimaryKeyMixin, Base):
+    __tablename__ = "processing_runs"
+    __table_args__ = (
+        UniqueConstraint(
+            "source_artifact_id", "adapter_name", "schema_version", name="uq_processing_scope"
+        ),
+        Index("ix_processing_runs_artifact_status", "source_artifact_id", "status"),
+    )
+
+    source_artifact_id: Mapped[UUID] = mapped_column(ForeignKey("source_artifacts.id"))
+    adapter_name: Mapped[str] = mapped_column(String(255))
+    adapter_version: Mapped[str] = mapped_column(String(50))
+    schema_version: Mapped[str] = mapped_column(String(50))
+    requested_by_user_account_id: Mapped[UUID] = mapped_column(ForeignKey("user_accounts.id"))
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    status: Mapped[str] = mapped_column(String(50), default="pending")
+    candidate_count: Mapped[int] = mapped_column(Integer, default=0)
+    accepted_count: Mapped[int] = mapped_column(Integer, default=0)
+    rejected_count: Mapped[int] = mapped_column(Integer, default=0)
+    review_required_count: Mapped[int] = mapped_column(Integer, default=0)
+    error_summary: Mapped[str | None] = mapped_column(Text)
+    configuration_json: Mapped[dict[str, Any]] = mapped_column(JSON_VARIANT, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class CandidateRecord(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "candidate_records"
+    __table_args__ = (Index("ix_candidate_records_run_status", "processing_run_id", "status"),)
+
+    processing_run_id: Mapped[UUID] = mapped_column(ForeignKey("processing_runs.id"))
+    subject_person_id: Mapped[UUID | None] = mapped_column(ForeignKey("persons.id"))
+    candidate_type: Mapped[str] = mapped_column(String(100))
+    source_locator: Mapped[str] = mapped_column(String(500))
+    status: Mapped[str] = mapped_column(String(50))
+    confidence: Mapped[Decimal | None] = mapped_column(Numeric(5, 4))
+    raw_candidate_json: Mapped[dict[str, Any]] = mapped_column(JSON_VARIANT)
+    normalized_candidate_json: Mapped[dict[str, Any] | None] = mapped_column(JSON_VARIANT)
+    approved_by_user_account_id: Mapped[UUID | None] = mapped_column(ForeignKey("user_accounts.id"))
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    rejected_by_user_account_id: Mapped[UUID | None] = mapped_column(ForeignKey("user_accounts.id"))
+    rejected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    rejection_reason: Mapped[str | None] = mapped_column(Text)
+
+
+class ValidationIssue(UUIDPrimaryKeyMixin, Base):
+    __tablename__ = "validation_issues"
+
+    processing_run_id: Mapped[UUID] = mapped_column(ForeignKey("processing_runs.id"), index=True)
+    candidate_record_id: Mapped[UUID | None] = mapped_column(ForeignKey("candidate_records.id"))
+    field_name: Mapped[str | None] = mapped_column(String(255))
+    severity: Mapped[str] = mapped_column(String(20))
+    issue_code: Mapped[str] = mapped_column(String(100))
+    message: Mapped[str] = mapped_column(Text)
+    source_locator: Mapped[str | None] = mapped_column(String(500))
+    details_json: Mapped[dict[str, Any]] = mapped_column(JSON_VARIANT, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class AuditEvent(UUIDPrimaryKeyMixin, Base):
+    __tablename__ = "audit_events"
+
+    actor_user_account_id: Mapped[UUID] = mapped_column(ForeignKey("user_accounts.id"), index=True)
+    action: Mapped[str] = mapped_column(String(100), index=True)
+    target_type: Mapped[str] = mapped_column(String(100))
+    target_id: Mapped[UUID] = mapped_column(index=True)
+    details_json: Mapped[dict[str, Any]] = mapped_column(JSON_VARIANT, default=dict)
+    occurred_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )

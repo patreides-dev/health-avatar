@@ -19,12 +19,26 @@ services:
         required: false
     environment:
       HEALTH_AVATAR_DATABASE_URL: ${HEALTH_AVATAR_DATABASE_URL:-postgresql+psycopg://health_avatar:development-only@db:5432/health_avatar}
+      HEALTH_AVATAR_ARTIFACT_STORAGE_PATH: /srv/data/artifacts
     ports:
       - "8000:8000"
     depends_on:
       db:
         condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=2)",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 12
     command: ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+    volumes:
+      - artifact-data:/srv/data/artifacts
 volumes:
   postgres-data:
-
+  artifact-data:

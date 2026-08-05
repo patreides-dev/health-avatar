@@ -1,10 +1,11 @@
 from dataclasses import dataclass
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import ObservationType, Person, SourceSystem
-from app.models.enums import ValueType
+from app.models import AccessGrant, ObservationType, Person, SourceSystem, UserAccount
+from app.models.enums import AccountStatus, ValueType
 
 
 @dataclass(frozen=True)
@@ -70,9 +71,74 @@ def seed_development(session: Session) -> dict[str, int]:
             )
         )
         source_created = 1
+    session.flush()
+
+    identities = (
+        ("dev-owner", "owner@example.invalid", "Kevin Demo Owner", True, False),
+        ("dev-viewer", "viewer@example.invalid", "Andrea Demo Viewer", True, False),
+        ("dev-pending", "pending@example.invalid", "Pending Demo User", False, False),
+        ("dev-admin", "admin@example.invalid", "Administrator Demo", True, True),
+        ("dev-caregiver", "caregiver@example.invalid", "Caregiver Demo", True, False),
+    )
+    users_created = 0
+    accounts: dict[str, UserAccount] = {}
+    for subject, email, name, active, administrator in identities:
+        account = session.scalar(
+            select(UserAccount).where(
+                UserAccount.auth_provider == "development",
+                UserAccount.provider_subject == subject,
+            )
+        )
+        if account is None:
+            account = UserAccount(
+                auth_provider="development",
+                provider_subject=subject,
+                email=email,
+                email_verified=True,
+                display_name=name,
+                account_status=AccountStatus.ACTIVE if active else AccountStatus.PENDING,
+                is_active=active,
+                is_system_administrator=administrator,
+            )
+            session.add(account)
+            users_created += 1
+        accounts[subject] = account
+    session.flush()
+    person = session.scalar(select(Person).where(Person.external_reference == "kevin-demo"))
+    assert person is not None
+    grants_created = 0
+    grant_specs = (
+        ("dev-owner", "owner", True, False),
+        ("dev-viewer", "viewer", False, False),
+        ("dev-caregiver", "caregiver", True, False),
+        ("dev-pending", "viewer", False, True),
+    )
+    for subject, role, can_approve, revoked in grant_specs:
+        existing_grant = session.scalar(
+            select(AccessGrant).where(
+                AccessGrant.user_account_id == accounts[subject].id,
+                AccessGrant.person_id == person.id,
+                AccessGrant.role == role,
+            )
+        )
+        if existing_grant is None:
+            session.add(
+                AccessGrant(
+                    user_account_id=accounts[subject].id,
+                    person_id=person.id,
+                    role=role,
+                    can_approve=can_approve,
+                    revoked_at=datetime.now(UTC) if revoked else None,
+                    granted_by_user_account_id=accounts["dev-admin"].id,
+                    revoked_by_user_account_id=accounts["dev-admin"].id if revoked else None,
+                )
+            )
+            grants_created += 1
     session.commit()
     return {
         "observation_types_created": created_types,
         "persons_created": person_created,
         "source_systems_created": source_created,
+        "user_accounts_created": users_created,
+        "access_grants_created": grants_created,
     }

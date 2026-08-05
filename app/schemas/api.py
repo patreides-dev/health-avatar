@@ -166,6 +166,83 @@ class ErrorResponse(BaseModel):
     error: ErrorDetail
 
 
+class MeRead(ORMModel):
+    id: UUID
+    email: str
+    email_verified: bool
+    display_name: str
+    profile_image_url: str | None
+    account_status: str
+    is_active: bool
+    is_system_administrator: bool
+
+
+class ArtifactRead(ORMModel):
+    id: UUID
+    subject_person_id: UUID | None
+    source_system_id: UUID | None
+    submitted_by_user_account_id: UUID
+    parent_artifact_id: UUID | None
+    artifact_kind: str
+    media_type: str
+    original_filename: str | None
+    original_external_reference: str | None
+    file_sha256: str | None
+    content_length: int | None
+    captured_at: datetime | None
+    received_at: datetime
+    processing_status: str
+    sensitivity_classification: str
+    metadata_json: dict[str, object]
+    created_at: datetime
+    updated_at: datetime
+
+
+class ProcessingRunRead(ORMModel):
+    id: UUID
+    source_artifact_id: UUID
+    adapter_name: str
+    adapter_version: str
+    schema_version: str
+    requested_by_user_account_id: UUID
+    started_at: datetime
+    completed_at: datetime | None
+    status: str
+    candidate_count: int
+    accepted_count: int
+    rejected_count: int
+    review_required_count: int
+    error_summary: str | None
+
+
+class CandidateRead(ORMModel):
+    id: UUID
+    processing_run_id: UUID
+    subject_person_id: UUID | None
+    candidate_type: str
+    source_locator: str
+    status: str
+    confidence: Decimal | None
+    normalized_candidate_json: dict[str, object] | None
+    approved_by_user_account_id: UUID | None
+    approved_at: datetime | None
+    rejected_by_user_account_id: UUID | None
+    rejected_at: datetime | None
+    rejection_reason: str | None
+
+
+class CandidateReject(BaseModel):
+    reason: str | None = Field(default=None, max_length=1000)
+
+
+class AccessGrantCreate(BaseModel):
+    user_account_id: UUID
+    person_id: UUID
+    role: str
+    can_approve: bool = False
+    expires_at: datetime | None = None
+
+
 class CanonicalObservationRow(BaseModel):
     person_external_reference: str
     observation_type: str
