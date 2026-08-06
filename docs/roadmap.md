@@ -3,8 +3,8 @@
 - **Version 0.1:** foundation and canonical CSV ingestion.
 - **Version 0.2A:** Google authentication, AccessGrant enforcement, source artifacts, adapter
   framework, candidate review, and secure private-household foundation.
-- **Version 0.2B:** workout-image capture, multimodal provider abstraction, structured exercise
-  extraction, and review.
+- **Version 0.2B:** universal text/image AI-assisted intake, typed/grouped facts, provider
+  abstraction, mandatory review, workout-image capture, exercise domain, and staged lab demo.
 - **Version 0.2C:** conversational meal entry, structured food parsing, nutrition database matching,
   nutrient calculation, and uncertainty handling.
 - **Version 0.3:** Samsung Health export ingestion.

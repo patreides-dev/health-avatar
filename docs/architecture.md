@@ -34,3 +34,23 @@ the submitter has write access.
 The application is synchronous in 0.2A. Background jobs, cloud object storage, malware scanning,
 and multimodal AI providers can implement existing boundaries later without replacing the staged
 pipeline.
+
+## Version 0.2B AI intake flow
+
+```mermaid
+flowchart LR
+  U[Authorized text or image] --> A[SourceArtifact]
+  A --> C[Consent and AIIntakeRequest]
+  C --> P[Provider-neutral extraction]
+  P --> R[ProcessingRun and CandidateRecord]
+  R --> F[Grouped ProposedHealthFact]
+  F --> V[Deterministic registry validation]
+  V --> H[Mandatory human review]
+  H --> O[HealthObservation promoter]
+  H --> E[ExerciseSession promoter]
+  H --> S[Reviewed laboratory facts remain staged]
+```
+
+Provider SDK objects never enter services or persistence. Domain promoters independently enforce
+authorization, validation, idempotency, transaction, and audit rules. This extends the Version
+0.2A artifact/run/candidate lifecycle rather than creating a parallel ingestion stack.

@@ -62,3 +62,14 @@ confidence and bounding/source references. `NarratedMealAdapter` can stage parse
 nutrition matcher. `MedicalPortalAdapter` can preserve document/page/field provenance and mandatory
 human review. Samsung, Hume, generic spreadsheets, archives, and API responses use the same contract.
 No production AI, OCR, nutrition, wearable, or medical-document interpretation exists in 0.2A.
+
+## AI-assisted intake extension
+
+Version 0.2B reuses the evidence, run, candidate, issue, authorization, and audit records for AI
+intake. A provider produces a strict provider-neutral health-fact schema. Each proposal becomes a
+typed candidate/fact before deterministic registry validation; no provider can bypass promotion.
+
+AI operation identity combines artifact scope with provider, prompt version, and output schema.
+Confirmation is independently idempotent at each canonical destination. Unsupported facts remain
+staged, and human corrections never rewrite the retained original proposal. Future narrated meals,
+nutrition labels, and medical documents use the same boundary.

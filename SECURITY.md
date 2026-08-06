@@ -1,6 +1,6 @@
 # Security policy
 
-Health Avatar may process highly sensitive information. Version 0.2A is for reviewed private
+Health Avatar may process highly sensitive information. Version 0.2B is for reviewed private
 development/household use and must not be publicly deployed without a separate security review. It
 makes no HIPAA or regulatory-certification claim.
 
@@ -19,8 +19,13 @@ makes no HIPAA or regulatory-certification claim.
 - Logs may contain identifiers, status, and safe error codes, never raw rows, artifact contents,
   tokens, complete observations, filesystem keys, or stack traces in client responses.
 - Administrative changes are auditable. Administrators receive no implicit health-record access.
-- No production cloud-AI processing is enabled. Future provider use requires consent, minimization,
-  retention, regional, and prompt-injection review.
+- Cloud AI is globally disabled by default and requires affirmative per-intake consent, an explicit
+  provider/model, a sensitivity-policy check, bounded timeouts/retries, and data minimization.
+- Images are checked for size, dimensions, type mismatch, corruption, and decompression bombs.
+  Provider-bound images are re-encoded without EXIF; originals remain private grant-protected
+  artifacts. Malware scanning remains a deployment requirement.
+- Image/document text is untrusted data. All AI facts are staged and reviewed; models cannot write
+  canonical records or provide diagnosis or treatment advice.
 - Never commit real health data, exports, documents, `.env`, credentials, secrets, private keys,
   dumps, backups, or generated artifact storage. All tracked fixtures must remain synthetic.
 - Production secrets must come from a secret manager/environment. Backups must be encrypted,

@@ -20,3 +20,17 @@
 The primary trust boundaries are the browser-to-application session, Google-to-callback token,
 application-to-PostgreSQL connection, application-to-artifact storage, and future adapter/provider
 boundary. Health data authorization is denied unless an active explicit grant exists.
+
+## AI and image additions
+
+- Prompt injection in image/document text is treated as data, never instruction; deterministic
+  validation ignores prose commands.
+- Hallucinated, conflicting, unitless, unknown, or uncertain facts cannot auto-promote. All AI facts
+  require an authorized reviewer.
+- Consent is recorded per intake. Global cloud disablement and maximum sensitivity prevent provider
+  use outside policy.
+- Provider requests minimize identity/context, use bounded timeout/retry, and omit secrets and raw
+  source content from logs. Raw model responses are hidden from ordinary APIs.
+- Actual-format checks, byte/pixel/dimension limits, generated storage keys, decompression-bomb
+  protection, and EXIF-free provider derivatives mitigate malicious image risks. Malware scanning
+  and provider retention/regional review remain deployment gates.

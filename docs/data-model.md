@@ -44,3 +44,25 @@ erDiagram
 
 Observations remain append-only. A complete correction/supersession service is deferred rather than
 adding unused mutable fields. Existing observations migrate unchanged and remain queryable.
+
+## AI intake and exercise additions
+
+```mermaid
+erDiagram
+  PERSON ||--o{ AI_INTAKE_REQUEST : subject
+  USER_ACCOUNT ||--o{ AI_INTAKE_REQUEST : submits
+  SOURCE_ARTIFACT ||--o{ AI_INTAKE_REQUEST : evidence
+  AI_INTAKE_REQUEST ||--|| AI_PROCESSING_CONSENT : records
+  AI_INTAKE_REQUEST ||--o| PROCESSING_RUN : uses
+  PROCESSING_RUN ||--o{ PROPOSED_HEALTH_FACT_GROUP : groups
+  CANDIDATE_RECORD ||--|| PROPOSED_HEALTH_FACT : types
+  PROPOSED_HEALTH_FACT_GROUP ||--o{ PROPOSED_HEALTH_FACT : contains
+  PROPOSED_HEALTH_FACT ||--o{ PROPOSED_FACT_REVISION : preserves
+  PROPOSED_HEALTH_FACT_GROUP ||--o| EXERCISE_SESSION : promotes
+  EXERCISE_SESSION ||--o{ EXERCISE_METRIC : owns
+```
+
+The fact table permits at most one typed value and constrains confidence to 0 through 1. Original
+proposals remain immutable while revision events preserve corrections, removals, and reviewer-added
+facts. Unique candidate and exercise-group relationships support idempotent promotion. Laboratory
+facts remain persistent staged records so panel grouping and reference ranges are not lost.

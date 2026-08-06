@@ -1,9 +1,9 @@
 # Health Avatar
 
 Health Avatar is a privacy-first, person-agnostic platform for longitudinal health data. Version
-0.2A adds secure identity, person-level authorization, immutable source artifacts, staged adapter
-processing, human review, and provenance-preserving promotion. It does not diagnose, recommend
-treatment, or perform production AI extraction.
+0.2B adds provider-independent text/image health intake, mandatory review, typed staged health
+facts, an extensible fact registry, and an authoritative exercise domain. It does not diagnose,
+recommend treatment, or automatically accept AI output.
 
 ## Local development
 
@@ -50,13 +50,17 @@ session-bound CSRF token. Version 0.1 route paths are retained but now require a
 authorization. Unauthorized object IDs normally return the same 404 as nonexistent objects.
 
 The responsive server-rendered interface provides login, pending-account, person selector, person
-summary, artifact upload, processing-run, and candidate review pages. It intentionally has no
-analytics dashboard.
+summary, artifact upload, candidate review, universal text intake, workout-photo intake, and
+grouped AI-fact review. It intentionally has no analytics dashboard.
+
+Cloud AI is disabled by default. OpenAI requires explicit provider, enablement, secret API key, and
+model settings. See [`docs/multimodal-providers.md`](docs/multimodal-providers.md) and
+[`docs/ai-privacy.md`](docs/ai-privacy.md).
 
 ## Privacy warning
 
 Never commit real health data, artifacts, exports, credentials, `.env`, database dumps, or backups.
 Local artifact bytes live outside relational columns in a configured storage directory. Version
-0.2A has not undergone a public-deployment review, does not include malware scanning or encrypted
+0.2B has not undergone a public-deployment review, does not include malware scanning or encrypted
 cloud storage, and makes no HIPAA or regulatory-compliance claim. See [`SECURITY.md`](SECURITY.md)
 and [`docs/threat-model.md`](docs/threat-model.md).
