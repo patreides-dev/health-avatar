@@ -9,13 +9,13 @@ This is the durable continuation checkpoint. Read this file first, then `README.
 
 - Repository: `patreides-dev/health-avatar`
 - Checkout: `C:\patreides-repos\health-avatar`
-- Current branch: `main`
+- Current branch: `version-0.2b-ai-intake`
 - Remote: `git@github-personal:patreides-dev/health-avatar.git`
 - Version 0.1 main baseline: `6bf32b5` (`docs: add fresh-thread continuation checkpoint`)
 - Version 0.2A merge commit: `3306046` (`merge: release Version 0.2A secure ingestion foundation`)
 - Annotated release tag: `v0.2.0-alpha.1`
 - Reviewed Version 0.2A feature head: `999d23f`
-- Migration head: `20260805_0002`, following `20260804_0001`
+- Migration head: `20260805_0003`, following `20260805_0002` and `20260804_0001`
 
 Version 0.2A passed its independent merge gate and is merged and pushed to `main`. The gate found
 and corrected two authorization-boundary defects before merge: CSV validation context could
@@ -75,6 +75,33 @@ Version 0.2A establishes secure identity and source-agnostic ingestion. It provi
 - Real health data, credentials, `.env`, dumps, and artifact-storage contents must never enter Git.
 - The deployment remains private and non-public pending an explicit security and operations review.
 
+## Version 0.2B scope and implementation
+
+Version 0.2B extends the verified Version 0.2A boundaries with:
+
+- Provider-neutral text/image extraction contracts, strict structured output, a deterministic mock
+  provider, and an official-SDK OpenAI provider that is disabled until cloud use, credentials, and
+  an explicit model are configured.
+- Per-intake disclosure/consent records, global cloud disablement, maximum sensitivity policy,
+  identity/context minimization, prompt-injection resistance, and no raw content or secrets in logs.
+- `AIIntakeRequest`, grouped typed `ProposedHealthFact` records, immutable original proposals,
+  review revisions, unsupported/unresolved persistence, and a registry of value types, units, and
+  domain targets.
+- Mandatory review for every AI fact. Reviewers may correct, remove, or add registered facts.
+  Promotion is authorized, audited, transactional, and idempotent; AI output never writes canonical
+  tables directly.
+- Safe JPEG/PNG/WebP intake with actual-format verification, byte/pixel/dimension limits,
+  decompression-bomb/corruption handling, private originals, and EXIF-free provider bytes.
+- An authoritative exercise domain with exercise types, sessions, metric definitions, metrics,
+  manual entry, and workout-image promotion without fabricated start times.
+- A non-exercise laboratory demonstration covering total/LDL/HDL cholesterol, triglycerides,
+  glucose, and A1c. Reviewed facts retain panel grouping, units, dates, and reference ranges but stay
+  staged until a coherent canonical laboratory domain is introduced.
+- Responsive add-health, workout-photo, grouped review, and recent-intake pages plus versioned APIs.
+
+See `docs/ai-health-intake.md`, `docs/health-fact-registry.md`, `docs/exercise-domain.md`,
+`docs/workout-image-ingestion.md`, `docs/multimodal-providers.md`, and `docs/ai-privacy.md`.
+
 ## Verification checkpoint
 
 Evidence run on the final Version 0.2A working tree:
@@ -108,19 +135,34 @@ reports that its current `httpx` integration is deprecated in favor of `httpx2`.
   Cloud client registration and an authorized redirect URI still require manual validation.
 - Local filesystem storage is development-only. Encrypted object storage, malware scanning,
   backup/restore drills, TLS termination, and production secrets infrastructure are not supplied.
-- The canonical CSV adapter is the only production-capable adapter. Archives, images, documents,
-  conversational text, and API payloads are representable but not yet interpreted.
+- Canonical CSV remains the only deterministic source adapter. Text and simple images use reviewed
+  provider extraction; PDF/complex documents and generic OCR remain deferred.
 - Observation correction/supersession remains a documented future non-destructive service design.
 - Device assignment ranges are validated but overlap/exclusivity policy remains deferred.
-- No production AI calls, OCR, workout-image extraction, meal/nutrition interpretation, Samsung or
-  Hume connector, medical-document extraction, diagnostics, treatment advice, public deployment,
-  native Android app, React SPA, background jobs, or broad analytics are included.
+- No live OpenAI call, generic OCR, meal/nutrition interpretation, canonical laboratory domain,
+  Samsung or Hume connector, medical-document extraction, diagnostics, treatment advice, public
+  deployment, native Android app, React SPA, background jobs, or broad analytics are included.
+
+## Version 0.2B verification checkpoint
+
+- Local suite: 66 passed, 3 PostgreSQL-only skipped; 82% branch-aware coverage.
+- PostgreSQL-backed Docker suite: 69 passed; 82% coverage. Its migration test populated Version
+  0.1, upgraded to `20260805_0003`, preserved data, downgraded to Version 0.1, and upgraded to head.
+- Ruff formatting/lint, strict MyPy (40 application files), all pinned pre-commit hooks, and Alembic
+  autogenerate drift check passed.
+- Docker image rebuilt; PostgreSQL and application became healthy; `/health` returned
+  `{"status":"ok","version":"0.2.0b1"}`.
+- Repeated synthetic seed runs created zero duplicates; `health-avatar validate` passed.
+- A temporary intentionally enabled development-auth container completed an owner four-fact lipid
+  intake and review, while the viewer submission returned the resource-hiding 404.
+- No real Google login or live OpenAI request was performed; both external integrations remain
+  covered with mocks and require manual credential/configuration validation.
 
 ## Next intended scope
 
-Version 0.2B should add workout-image capture, a multimodal provider abstraction, structured
-exercise extraction, uncertainty-aware staged candidates, and mandatory review. It must reuse the
-Version 0.2A artifact, adapter, processing, candidate, authorization, and promotion boundaries.
+Version 0.2C should build a conversational meal workflow with a provider-neutral nutrition matcher,
+structured foods, uncertainty, and explicit review. It should also decide whether to introduce the
+canonical laboratory panel/result domain now that reviewed laboratory facts establish its boundary.
 
 ## Fresh-thread startup checklist
 
