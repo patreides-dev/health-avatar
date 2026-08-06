@@ -98,7 +98,7 @@ def test_populated_version_01_database_upgrades_and_downgrades() -> None:
                 == 1
             )
             assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
-                "20260805_0002"
+                "20260805_0003"
             )
             assert connection.scalar(text("SELECT to_regclass('public.source_artifacts')")) == (
                 "source_artifacts"
@@ -114,7 +114,7 @@ def test_populated_version_01_database_upgrades_and_downgrades() -> None:
         subprocess.run(["alembic", "upgrade", "head"], check=True, env=environment)
         with test_engine.connect() as connection:
             assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
-                "20260805_0002"
+                "20260805_0003"
             )
             assert (
                 connection.scalar(

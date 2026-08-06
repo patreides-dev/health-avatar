@@ -10,7 +10,7 @@ from app.models import Person, UserAccount
 def test_health_endpoint(client: TestClient) -> None:
     response = client.get("/health")
     assert response.status_code == 200
-    assert response.json() == {"status": "ok", "version": "0.2.0"}
+    assert response.json() == {"status": "ok", "version": "0.2.0b1"}
 
 
 def test_anonymous_health_data_is_blocked(client: TestClient, seeded_session: Session) -> None:

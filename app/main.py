@@ -1,6 +1,7 @@
 # ruff: noqa: E501
 import json
 from datetime import UTC, datetime
+from decimal import Decimal
 from html import escape
 from typing import Annotated
 from uuid import UUID
@@ -20,9 +21,12 @@ from app.core.config import get_settings
 from app.db.session import get_db
 from app.models import (
     AccessGrant,
+    AIIntakeRequest,
     CandidateRecord,
     Person,
     ProcessingRun,
+    ProposedHealthFact,
+    ProposedHealthFactGroup,
     SourceArtifact,
     SourceSystem,
     UserAccount,
@@ -48,7 +52,7 @@ app.include_router(auth_router)
 app.include_router(router)
 
 STYLE = "body{font:16px system-ui;margin:0;color:#15202b}main{max-width:60rem;margin:auto;padding:1rem}nav{background:#123b57;color:white;padding:1rem}nav a{color:white}a,button{min-height:44px}table{width:100%;border-collapse:collapse}td,th{padding:.6rem;border-bottom:1px solid #ddd;text-align:left}.card{padding:1rem;margin:.7rem 0;border:1px solid #ccd;border-radius:.5rem}.warning{color:#9b2c2c}@media(max-width:600px){table{font-size:.88rem}.optional{display:none}}"
-SCRIPT = "<script>function csrf(){return document.cookie.split('; ').find(x=>x.startsWith('health_avatar_csrf='))?.split('=')[1]||''}async function submitForm(e){e.preventDefault();let h={'X-CSRF-Token':decodeURIComponent(csrf())};let r=await fetch(e.target.action,{method:e.target.method,body:new FormData(e.target),headers:h});if(!r.ok){alert(await r.text());return}let j=await r.json();if(e.target.action.endsWith('/artifacts')){let p=await fetch('/api/v1/artifacts/'+j.id+'/process',{method:'POST',headers:h});if(!p.ok){alert(await p.text());return}let run=await p.json();location.href='/app/processing-runs/'+run.id}else{location.href='/app'}}async function action(url,body){let r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':decodeURIComponent(csrf())},body:JSON.stringify(body||{})});if(r.ok)location.reload();else alert(await r.text())}</script>"
+SCRIPT = "<script>function csrf(){return document.cookie.split('; ').find(x=>x.startsWith('health_avatar_csrf='))?.split('=')[1]||''}async function submitForm(e){e.preventDefault();let h={'X-CSRF-Token':decodeURIComponent(csrf())};let r=await fetch(e.target.action,{method:e.target.method,body:new FormData(e.target),headers:h});if(!r.ok){alert(await r.text());return}let j=await r.json();if(e.target.action.endsWith('/artifacts')){let p=await fetch('/api/v1/artifacts/'+j.id+'/process',{method:'POST',headers:h});if(!p.ok){alert(await p.text());return}let run=await p.json();location.href='/app/processing-runs/'+run.id}else if(j.processing_run_id){location.href='/app/ai-intake/'+j.id}else{location.href='/app'}}async function intakeText(e){e.preventDefault();let f=new FormData(e.target);let b={text:f.get('text'),purpose:f.get('purpose'),sensitivity:f.get('sensitivity'),consent:f.get('consent')==='on'};let r=await fetch(e.target.action,{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':decodeURIComponent(csrf())},body:JSON.stringify(b)});if(!r.ok){alert(await r.text());return}let j=await r.json();location.href='/app/ai-intake/'+j.id}async function action(url,body){let r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':decodeURIComponent(csrf())},body:JSON.stringify(body||{})});if(r.ok)location.reload();else alert(await r.text())}</script>"
 
 
 def page(title: str, body: str) -> str:
@@ -176,8 +180,131 @@ def person_summary(
             review_links.append(
                 f"<li><a href='/app/processing-runs/{latest_run.id}'>Review {escape(artifact.original_filename or artifact.artifact_kind)}</a></li>"
             )
-    body = f"<h1>{escape(person.preferred_name)}</h1><p><a href='/app/persons/{person.id}/upload'>Upload canonical CSV</a></p><h2>Recent observations</h2><table><tr><th>Type</th><th>Value</th><th>Unit</th><th class='optional'>Observed</th></tr>{obs_html}</table><h2>Recent ingestion</h2><ul>{runs_html}</ul><h2>Review staged records</h2><ul>{''.join(review_links)}</ul>"
+    intakes = session.scalars(
+        select(AIIntakeRequest)
+        .where(AIIntakeRequest.person_id == person_id)
+        .order_by(AIIntakeRequest.created_at.desc(), AIIntakeRequest.id)
+        .limit(10)
+    )
+    intake_html = "".join(
+        f"<li><a href='/app/ai-intake/{item.id}'>{escape(item.intake_purpose)}</a> — {escape(item.status)}</li>"
+        for item in intakes
+    )
+    body = f"<h1>{escape(person.preferred_name)}</h1><p><a href='/app/persons/{person.id}/add-health'>Add health information</a> · <a href='/app/persons/{person.id}/workout-photo'>Add workout from photo</a> · <a href='/app/persons/{person.id}/upload'>Upload canonical CSV</a></p><h2>Recent observations</h2><table><tr><th>Type</th><th>Value</th><th>Unit</th><th class='optional'>Observed</th></tr>{obs_html}</table><h2>Recent AI intake</h2><ul>{intake_html or '<li>None yet</li>'}</ul><h2>Recent ingestion</h2><ul>{runs_html}</ul><h2>Review staged records</h2><ul>{''.join(review_links)}</ul>"
     return HTMLResponse(page(person.preferred_name, body))
+
+
+def _intake_form_account(
+    person_id: UUID, request: Request, session: Session
+) -> UserAccount | RedirectResponse:
+    account = active_browser_account(request, session)
+    if isinstance(account, RedirectResponse):
+        return account
+    try:
+        authorize(
+            session, Actor(account.id, account.is_system_administrator), person_id, Action.SUBMIT
+        )
+    except AuthorizationError as exc:
+        raise HTTPException(404) from exc
+    return account
+
+
+@app.get(
+    "/app/persons/{person_id}/add-health",
+    response_class=HTMLResponse,
+    response_model=None,
+    include_in_schema=False,
+)
+def add_health_page(
+    person_id: UUID, request: Request, session: DB
+) -> HTMLResponse | RedirectResponse:
+    account = _intake_form_account(person_id, request, session)
+    if isinstance(account, RedirectResponse):
+        return account
+    disclosure = escape(f"Provider: {settings.ai_provider}; model: configured by the server")
+    body = f"<h1>Add health information</h1><p>Type or dictate health information. Extracted values are proposals until you review and confirm them. This service does not diagnose or advise treatment.</p><form onsubmit='intakeText(event)' action='/api/v1/persons/{person_id}/ai-intake/text' method='post'><label>Information<textarea name='text' rows='7' required></textarea></label><br><label>Category hint<select name='purpose'><option>general_health</option><option>exercise</option><option>laboratory</option><option>nutrition</option><option>medication</option><option>symptom</option><option>other</option></select></label><input type='hidden' name='sensitivity' value='general_health'><div class='card'><strong>Processing consent</strong><p>{disclosure}. Health-related content will be processed for structured extraction. You must review every fact.</p><label><input type='checkbox' name='consent' required> I consent to this processing.</label></div><button>Extract proposed facts</button></form>"
+    return HTMLResponse(page("Add health information", body))
+
+
+@app.get(
+    "/app/persons/{person_id}/workout-photo",
+    response_class=HTMLResponse,
+    response_model=None,
+    include_in_schema=False,
+)
+def workout_photo_page(
+    person_id: UUID, request: Request, session: DB
+) -> HTMLResponse | RedirectResponse:
+    account = _intake_form_account(person_id, request, session)
+    if isinstance(account, RedirectResponse):
+        return account
+    body = f"<h1>Add workout from photo</h1><p>The original image remains private. A metadata-stripped safe representation is sent to the configured provider. Every extracted metric requires review.</p><form onsubmit='submitForm(event)' action='/api/v1/persons/{person_id}/ai-intake/image' method='post' enctype='multipart/form-data'><input type='hidden' name='purpose' value='exercise'><input type='hidden' name='sensitivity' value='exercise'><label>Workout image<input type='file' name='file' accept='image/jpeg,image/png,image/webp' required></label><br><label>Optional context<input name='context' maxlength='2000' placeholder='Elliptical workout'></label><div class='card'><strong>Processing consent</strong><p>Provider: {escape(settings.ai_provider)}. Health-related image content will be transmitted when a cloud provider is enabled.</p><label><input type='checkbox' name='consent' required> I consent and will review all extracted facts.</label></div><button>Extract workout</button></form>"
+    return HTMLResponse(page("Add workout from photo", body))
+
+
+@app.get(
+    "/app/ai-intake/{intake_id}",
+    response_class=HTMLResponse,
+    response_model=None,
+    include_in_schema=False,
+)
+def ai_intake_review_page(
+    intake_id: UUID, request: Request, session: DB
+) -> HTMLResponse | RedirectResponse:
+    account = active_browser_account(request, session)
+    if isinstance(account, RedirectResponse):
+        return account
+    intake = session.get(AIIntakeRequest, intake_id)
+    if intake is None or intake.processing_run_id is None:
+        raise HTTPException(404)
+    try:
+        authorize(
+            session,
+            Actor(account.id, account.is_system_administrator),
+            intake.person_id,
+            Action.VIEW,
+        )
+    except AuthorizationError as exc:
+        raise HTTPException(404) from exc
+    groups = {
+        group.id: group
+        for group in session.scalars(
+            select(ProposedHealthFactGroup).where(
+                ProposedHealthFactGroup.processing_run_id == intake.processing_run_id
+            )
+        )
+    }
+    facts = list(
+        session.scalars(
+            select(ProposedHealthFact)
+            .where(ProposedHealthFact.processing_run_id == intake.processing_run_id)
+            .order_by(ProposedHealthFact.created_at, ProposedHealthFact.id)
+        )
+    )
+    sections: dict[str, list[ProposedHealthFact]] = {}
+    for fact in facts:
+        label = (
+            groups[fact.fact_group_id].display_name
+            if fact.fact_group_id in groups
+            else "Other facts"
+        )
+        sections.setdefault(label, []).append(fact)
+    section_html = ""
+    for label, items in sections.items():
+        rows = ""
+        for fact in items:
+            value = fact.numeric_value if fact.numeric_value is not None else fact.text_value
+            confidence = f"{float(fact.confidence or 0):.0%}"
+            low = (
+                " — low confidence"
+                if fact.confidence is not None and fact.confidence < Decimal("0.8")
+                else ""
+            )
+            rows += f"<tr><td>{escape(fact.display_name)}</td><td>{escape(str(value or 'unresolved'))}</td><td>{escape(fact.unit or '')}</td><td>{escape(fact.canonical_status)}</td><td>{confidence}{low}</td></tr>"
+        section_html += f"<section class='card'><h2>{escape(label)}</h2><table><tr><th>Proposed fact</th><th>Value</th><th>Unit</th><th>Status</th><th>Confidence</th></tr>{rows}</table></section>"
+    unsupported = sum(fact.canonical_status in {"unsupported", "unresolved"} for fact in facts)
+    body = f"<h1>Review extracted health facts</h1><p><strong>Not confirmed:</strong> these values are AI proposals. No diagnosis or treatment advice is provided.</p><p>Status: {escape(intake.status)}; provider: {escape(intake.provider_name)}; model: {escape(intake.model_name)}; prompt {escape(intake.prompt_version)}.</p>{section_html}<p>Unsupported or unresolved facts: {unsupported}. They remain staged and are not forced into canonical records.</p><button onclick=\"action('/api/v1/ai-intake/{intake.id}/confirm')\">Confirm supported facts</button> <button onclick=\"action('/api/v1/ai-intake/{intake.id}/reject',{{reason:'Rejected in review'}})\">Reject submission</button>"
+    return HTMLResponse(page("Review extracted health facts", body))
 
 
 @app.get(

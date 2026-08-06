@@ -235,6 +235,119 @@ class CandidateReject(BaseModel):
     reason: str | None = Field(default=None, max_length=1000)
 
 
+class AITextIntakeCreate(BaseModel):
+    text: str = Field(min_length=1, max_length=20_000)
+    purpose: str = Field(default="general_health", max_length=100)
+    sensitivity: str = Field(default="general_health", max_length=100)
+    consent: bool
+
+
+class AIIntakeRead(ORMModel):
+    id: UUID
+    person_id: UUID
+    source_artifact_id: UUID
+    processing_run_id: UUID | None
+    input_modality: str
+    intake_purpose: str
+    provider_name: str
+    model_name: str
+    prompt_template_name: str
+    prompt_version: str
+    output_schema_version: str
+    status: str
+    submission_summary: str | None
+    unresolved_content: list[object]
+    overall_confidence: Decimal | None
+    error_code: str | None
+    created_at: datetime
+    completed_at: datetime | None
+
+
+class ProposedHealthFactRead(ORMModel):
+    id: UUID
+    processing_run_id: UUID
+    candidate_record_id: UUID
+    fact_group_id: UUID | None
+    subject_person_id: UUID
+    fact_category: str
+    fact_code: str
+    display_name: str
+    value_type: str | None
+    numeric_value: Decimal | None
+    text_value: str | None
+    boolean_value: bool | None
+    date_value: date | None
+    datetime_value: datetime | None
+    unit: str | None
+    original_unit: str | None
+    reference_range_low: Decimal | None
+    reference_range_high: Decimal | None
+    reference_range_text: str | None
+    observed_at: datetime | None
+    confidence: Decimal | None
+    source_label: str | None
+    source_locator: str | None
+    interpretation_notes: str | None
+    canonical_target_type: str | None
+    canonical_status: str
+    confirmed_by_user_account_id: UUID | None
+    confirmed_at: datetime | None
+    promoted_record_type: str | None
+    promoted_record_id: UUID | None
+
+
+class FactRevisionRequest(BaseModel):
+    numeric_value: Decimal | None = None
+    unit: str | None = Field(default=None, max_length=100)
+    observed_at: datetime | None = None
+    remove: bool = False
+    reason: str | None = Field(default=None, max_length=1000)
+
+
+class FactAddRequest(BaseModel):
+    fact_code: str = Field(min_length=1, max_length=150)
+    numeric_value: Decimal
+    unit: str = Field(min_length=1, max_length=100)
+    observed_at: datetime | None = None
+    group_id: UUID | None = None
+    reason: str | None = Field(default=None, max_length=1000)
+
+
+class IntakeRejectRequest(BaseModel):
+    reason: str | None = Field(default=None, max_length=1000)
+
+
+class ExerciseMetricCreate(BaseModel):
+    code: str
+    value: Decimal
+    unit: str
+
+
+class ExerciseSessionCreate(BaseModel):
+    exercise_type: str
+    started_at: datetime | None = None
+    duration_seconds: int | None = Field(default=None, ge=1)
+    notes: str | None = Field(default=None, max_length=2000)
+    metrics: list[ExerciseMetricCreate] = Field(default_factory=list)
+
+
+class ExerciseSessionRead(ORMModel):
+    id: UUID
+    person_id: UUID
+    exercise_type_id: UUID
+    source_artifact_id: UUID | None
+    processing_run_id: UUID | None
+    fact_group_id: UUID | None
+    entered_by_user_account_id: UUID
+    confirmed_by_user_account_id: UUID
+    started_at: datetime | None
+    ended_at: datetime | None
+    duration_seconds: int | None
+    notes: str | None
+    source_measurement_reliability: str
+    created_at: datetime
+
+
 class AccessGrantCreate(BaseModel):
     user_account_id: UUID
     person_id: UUID
