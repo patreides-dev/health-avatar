@@ -68,3 +68,31 @@ class ReliabilityClassification(StrEnum):
     SELF_REPORTED = "self_reported"
     DERIVED = "derived"
     UNKNOWN = "unknown"
+
+
+class AIIntakeStatus(StrEnum):
+    PENDING = "pending"
+    PROCESSING = "processing"
+    AWAITING_REVIEW = "awaiting_review"
+    PARTIALLY_CONFIRMED = "partially_confirmed"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    REJECTED = "rejected"
+
+
+class FactStatus(StrEnum):
+    AWAITING_REVIEW = "awaiting_review"
+    UNSUPPORTED = "unsupported"
+    UNRESOLVED = "unresolved"
+    INVALID = "invalid"
+    CONFIRMED = "confirmed"
+    REJECTED = "rejected"
+    PROMOTED = "promoted"
+
+
+class FactValueType(StrEnum):
+    NUMERIC = "numeric"
+    TEXT = "text"
+    BOOLEAN = "boolean"
+    DATE = "date"
+    DATETIME = "datetime"

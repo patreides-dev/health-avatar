@@ -4,7 +4,15 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import AccessGrant, ObservationType, Person, SourceSystem, UserAccount
+from app.models import (
+    AccessGrant,
+    ExerciseMetricDefinition,
+    ExerciseType,
+    ObservationType,
+    Person,
+    SourceSystem,
+    UserAccount,
+)
 from app.models.enums import AccountStatus, ValueType
 
 
@@ -29,9 +37,53 @@ OBSERVATION_TYPES = (
     ),
 )
 
+EXERCISE_METRICS = {
+    "duration": ["s", "min", "hour"],
+    "distance": ["mi", "km", "m"],
+    "calories_burned": ["kcal"],
+    "average_heart_rate": ["bpm"],
+    "maximum_heart_rate": ["bpm"],
+    "minimum_heart_rate": ["bpm"],
+    "average_speed": ["mph", "km/h"],
+    "maximum_speed": ["mph", "km/h"],
+    "pace": ["min/mi", "min/km"],
+    "resistance_level": ["level"],
+    "incline": ["%"],
+    "steps": ["count"],
+    "strides": ["count"],
+    "floors": ["count"],
+    "elevation_gain": ["ft", "m"],
+    "cadence": ["rpm", "spm"],
+    "watts": ["W"],
+    "mets": ["MET"],
+}
+
+
+def ensure_ai_catalog(session: Session) -> None:
+    for code, display in (("elliptical", "Elliptical"), ("other", "Other exercise")):
+        if session.scalar(select(ExerciseType).where(ExerciseType.code == code)) is None:
+            session.add(ExerciseType(code=code, display_name=display, active=True))
+    for code, units in EXERCISE_METRICS.items():
+        if (
+            session.scalar(
+                select(ExerciseMetricDefinition).where(ExerciseMetricDefinition.code == code)
+            )
+            is None
+        ):
+            session.add(
+                ExerciseMetricDefinition(
+                    code=code,
+                    display_name=code.replace("_", " ").title(),
+                    allowed_units_json=units,
+                    active=True,
+                )
+            )
+    session.flush()
+
 
 def seed_development(session: Session) -> dict[str, int]:
     """Idempotently seed the controlled development catalog and synthetic demo identity."""
+    ensure_ai_catalog(session)
     created_types = 0
     for seed in OBSERVATION_TYPES:
         existing = session.scalar(select(ObservationType).where(ObservationType.code == seed.code))

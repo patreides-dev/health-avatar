@@ -406,3 +406,197 @@ class AuditEvent(UUIDPrimaryKeyMixin, Base):
     occurred_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+
+
+class AIIntakeRequest(UUIDPrimaryKeyMixin, Base):
+    __tablename__ = "ai_intake_requests"
+    __table_args__ = (
+        Index("ix_ai_intake_person_created", "person_id", "created_at"),
+        Index("ix_ai_intake_status", "status"),
+    )
+
+    person_id: Mapped[UUID] = mapped_column(ForeignKey("persons.id"))
+    submitted_by_user_account_id: Mapped[UUID] = mapped_column(ForeignKey("user_accounts.id"))
+    source_artifact_id: Mapped[UUID] = mapped_column(ForeignKey("source_artifacts.id"))
+    processing_run_id: Mapped[UUID | None] = mapped_column(ForeignKey("processing_runs.id"))
+    input_modality: Mapped[str] = mapped_column(String(50))
+    intake_purpose: Mapped[str] = mapped_column(String(100))
+    user_context_text: Mapped[str | None] = mapped_column(Text)
+    provider_name: Mapped[str] = mapped_column(String(100))
+    model_name: Mapped[str] = mapped_column(String(255))
+    prompt_template_name: Mapped[str] = mapped_column(String(255))
+    prompt_version: Mapped[str] = mapped_column(String(50))
+    output_schema_version: Mapped[str] = mapped_column(String(50))
+    status: Mapped[str] = mapped_column(String(50))
+    raw_model_response_json: Mapped[dict[str, Any] | None] = mapped_column(JSON_VARIANT)
+    submission_summary: Mapped[str | None] = mapped_column(Text)
+    unresolved_content: Mapped[list[Any]] = mapped_column(JSON_VARIANT, default=list)
+    overall_confidence: Mapped[Decimal | None] = mapped_column(Numeric(5, 4))
+    error_code: Mapped[str | None] = mapped_column(String(100))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class AIProcessingConsent(UUIDPrimaryKeyMixin, Base):
+    __tablename__ = "ai_processing_consents"
+    __table_args__ = (Index("ix_ai_consent_user_time", "user_account_id", "consented_at"),)
+
+    ai_intake_request_id: Mapped[UUID] = mapped_column(ForeignKey("ai_intake_requests.id"))
+    user_account_id: Mapped[UUID] = mapped_column(ForeignKey("user_accounts.id"))
+    source_artifact_id: Mapped[UUID] = mapped_column(ForeignKey("source_artifacts.id"))
+    provider_name: Mapped[str] = mapped_column(String(100))
+    model_name: Mapped[str] = mapped_column(String(255))
+    purpose: Mapped[str] = mapped_column(String(100))
+    policy_version: Mapped[str] = mapped_column(String(50))
+    consented_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class ProposedHealthFactGroup(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "proposed_health_fact_groups"
+    __table_args__ = (
+        UniqueConstraint("ai_intake_request_id", "group_identifier", name="uq_intake_fact_group"),
+        Index("ix_fact_groups_run_type", "processing_run_id", "group_type"),
+    )
+
+    ai_intake_request_id: Mapped[UUID] = mapped_column(ForeignKey("ai_intake_requests.id"))
+    processing_run_id: Mapped[UUID] = mapped_column(ForeignKey("processing_runs.id"))
+    subject_person_id: Mapped[UUID] = mapped_column(ForeignKey("persons.id"))
+    group_identifier: Mapped[str] = mapped_column(String(255))
+    group_type: Mapped[str] = mapped_column(String(100))
+    display_name: Mapped[str] = mapped_column(String(255))
+    status: Mapped[str] = mapped_column(String(50), default="awaiting_review")
+
+
+class ProposedHealthFact(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "proposed_health_facts"
+    __table_args__ = (
+        CheckConstraint(
+            "confidence IS NULL OR (confidence >= 0 AND confidence <= 1)",
+            name="confidence_range",
+        ),
+        CheckConstraint(
+            "(CASE WHEN numeric_value IS NULL THEN 0 ELSE 1 END + "
+            "CASE WHEN text_value IS NULL THEN 0 ELSE 1 END + "
+            "CASE WHEN boolean_value IS NULL THEN 0 ELSE 1 END + "
+            "CASE WHEN date_value IS NULL THEN 0 ELSE 1 END + "
+            "CASE WHEN datetime_value IS NULL THEN 0 ELSE 1 END) <= 1",
+            name="at_most_one_typed_value",
+        ),
+        Index("ix_proposed_facts_run_status", "processing_run_id", "canonical_status"),
+        Index("ix_proposed_facts_group", "fact_group_id"),
+    )
+
+    processing_run_id: Mapped[UUID] = mapped_column(ForeignKey("processing_runs.id"))
+    candidate_record_id: Mapped[UUID] = mapped_column(
+        ForeignKey("candidate_records.id"), unique=True
+    )
+    fact_group_id: Mapped[UUID | None] = mapped_column(ForeignKey("proposed_health_fact_groups.id"))
+    subject_person_id: Mapped[UUID] = mapped_column(ForeignKey("persons.id"))
+    fact_category: Mapped[str] = mapped_column(String(100))
+    fact_code: Mapped[str] = mapped_column(String(150))
+    display_name: Mapped[str] = mapped_column(String(255))
+    value_type: Mapped[str | None] = mapped_column(String(50))
+    numeric_value: Mapped[Decimal | None] = mapped_column(Numeric(20, 8))
+    text_value: Mapped[str | None] = mapped_column(Text)
+    boolean_value: Mapped[bool | None] = mapped_column(Boolean)
+    date_value: Mapped[date | None] = mapped_column(Date)
+    datetime_value: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    original_value_text: Mapped[str | None] = mapped_column(Text)
+    unit: Mapped[str | None] = mapped_column(String(100))
+    original_unit: Mapped[str | None] = mapped_column(String(100))
+    reference_range_low: Mapped[Decimal | None] = mapped_column(Numeric(20, 8))
+    reference_range_high: Mapped[Decimal | None] = mapped_column(Numeric(20, 8))
+    reference_range_text: Mapped[str | None] = mapped_column(String(500))
+    observed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    observed_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    confidence: Mapped[Decimal | None] = mapped_column(Numeric(5, 4))
+    source_label: Mapped[str | None] = mapped_column(String(255))
+    source_locator: Mapped[str | None] = mapped_column(String(500))
+    interpretation_notes: Mapped[str | None] = mapped_column(Text)
+    canonical_target_type: Mapped[str | None] = mapped_column(String(100))
+    canonical_status: Mapped[str] = mapped_column(String(50))
+    original_proposal_json: Mapped[dict[str, Any]] = mapped_column(JSON_VARIANT)
+    confirmed_by_user_account_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("user_accounts.id")
+    )
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    promoted_record_type: Mapped[str | None] = mapped_column(String(100))
+    promoted_record_id: Mapped[UUID | None] = mapped_column()
+
+
+class ProposedFactRevision(UUIDPrimaryKeyMixin, Base):
+    __tablename__ = "proposed_fact_revisions"
+    __table_args__ = (
+        Index("ix_fact_revisions_fact_time", "proposed_health_fact_id", "created_at"),
+    )
+
+    proposed_health_fact_id: Mapped[UUID] = mapped_column(ForeignKey("proposed_health_facts.id"))
+    actor_user_account_id: Mapped[UUID] = mapped_column(ForeignKey("user_accounts.id"))
+    action: Mapped[str] = mapped_column(String(50))
+    before_json: Mapped[dict[str, Any]] = mapped_column(JSON_VARIANT)
+    after_json: Mapped[dict[str, Any] | None] = mapped_column(JSON_VARIANT)
+    reason: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ExerciseType(UUIDPrimaryKeyMixin, Base):
+    __tablename__ = "exercise_types"
+
+    code: Mapped[str] = mapped_column(String(100), unique=True)
+    display_name: Mapped[str] = mapped_column(String(255))
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ExerciseMetricDefinition(UUIDPrimaryKeyMixin, Base):
+    __tablename__ = "exercise_metric_definitions"
+
+    code: Mapped[str] = mapped_column(String(100), unique=True)
+    display_name: Mapped[str] = mapped_column(String(255))
+    allowed_units_json: Mapped[list[Any]] = mapped_column(JSON_VARIANT)
+    observation_projection_code: Mapped[str | None] = mapped_column(String(100))
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class ExerciseSession(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "exercise_sessions"
+    __table_args__ = (Index("ix_exercise_sessions_person_time", "person_id", "started_at"),)
+
+    person_id: Mapped[UUID] = mapped_column(ForeignKey("persons.id"))
+    exercise_type_id: Mapped[UUID] = mapped_column(ForeignKey("exercise_types.id"))
+    source_artifact_id: Mapped[UUID | None] = mapped_column(ForeignKey("source_artifacts.id"))
+    processing_run_id: Mapped[UUID | None] = mapped_column(ForeignKey("processing_runs.id"))
+    fact_group_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("proposed_health_fact_groups.id"), unique=True
+    )
+    entered_by_user_account_id: Mapped[UUID] = mapped_column(ForeignKey("user_accounts.id"))
+    confirmed_by_user_account_id: Mapped[UUID] = mapped_column(ForeignKey("user_accounts.id"))
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    duration_seconds: Mapped[int | None] = mapped_column(Integer)
+    notes: Mapped[str | None] = mapped_column(Text)
+    source_measurement_reliability: Mapped[str] = mapped_column(String(50))
+
+
+class ExerciseMetric(UUIDPrimaryKeyMixin, Base):
+    __tablename__ = "exercise_metrics"
+    __table_args__ = (
+        UniqueConstraint("exercise_session_id", "metric_definition_id", name="uq_exercise_metric"),
+    )
+
+    exercise_session_id: Mapped[UUID] = mapped_column(ForeignKey("exercise_sessions.id"))
+    metric_definition_id: Mapped[UUID] = mapped_column(ForeignKey("exercise_metric_definitions.id"))
+    numeric_value: Mapped[Decimal] = mapped_column(Numeric(20, 8))
+    unit: Mapped[str] = mapped_column(String(100))
+    extraction_confidence: Mapped[Decimal | None] = mapped_column(Numeric(5, 4))
+    source_measurement_reliability: Mapped[str] = mapped_column(String(50))
+    user_confirmed: Mapped[bool] = mapped_column(Boolean, default=False)
+    proposed_health_fact_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("proposed_health_facts.id")
+    )
+    projected_observation_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("health_observations.id")
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
